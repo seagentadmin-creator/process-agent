@@ -1,0 +1,37 @@
+{
+  "manifest_version": 3,
+  "name": "Process Agent",
+  "version": "1.0.0",
+  "description": "AI-powered Process Agent for Jira Task Management",
+  "permissions": [
+    "storage",
+    "alarms",
+    "sidePanel",
+    "activeTab"
+  ],
+  "host_permissions": [
+    "https://*/*"
+  ],
+  "background": {
+    "service_worker": "background/service-worker.js",
+    "type": "module"
+  },
+  "side_panel": {
+    "default_path": "sidepanel/index.html"
+  },
+  "action": {
+    "default_title": "Process Agent",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png",
+      "48": "icons/icon-48.png",
+      "128": "icons/icon-128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  }
+}

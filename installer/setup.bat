@@ -123,7 +123,7 @@ echo      1. GitHub Release URL
 echo      2. pa-config.ini 파일
 echo.
 echo    팀원은 Release zip 다운로드 후
-echo    setup.bat - [U] User 로 설치합니다.
+echo    Setup 도구에서 [U] User 로 설치합니다.
 echo.
 pause
 goto :EOF
@@ -235,7 +235,7 @@ echo    [자동] Native Host 설치됨
 echo      - Extension이 자동으로 업데이트합니다.
 echo.
 echo    [수동] Native Host 미설치
-echo      - setup.bat - [U] - [2] 업데이트 선택
+echo      - Setup 도구에서 [U] - [2] 업데이트 선택
 echo      - chrome://extensions 에서 새로고침 클릭
 echo.
 pause
@@ -309,7 +309,7 @@ if errorlevel 1 (
     echo.
     echo    새 버전이 나오면 아래 방법으로 업데이트하세요:
     echo.
-    echo    1. setup.bat 더블클릭
+    echo    1. Setup 도구 실행
     echo    2. [U] User 선택
     echo    3. [2] 업데이트 선택
     echo    4. 자동 다운로드 완료 후
@@ -356,7 +356,7 @@ if not "%EXT_ID%"=="" (
     set /p EXT_ID="  Extension ID: "
     if "!EXT_ID!"=="" (
         echo  Extension ID가 없어 Native Host를 건너뜁니다.
-        echo  수동 업데이트: setup.bat - [2] 선택
+        echo  수동 업데이트: Setup 도구에서 [2] 선택
         exit /b 0
     )
 )

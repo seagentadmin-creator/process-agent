@@ -31,8 +31,8 @@ async function checkExtensionUpdate() {
   try {
     // GitHub 설정은 storage에서 읽기
     const config = await chrome.storage.local.get(['pa-github-owner', 'pa-github-repo']);
-    const owner = config['pa-github-owner'];
-    const repo = config['pa-github-repo'];
+    const owner = config['pa-github-owner'] as string;
+    const repo = config['pa-github-repo'] as string;
     if (!owner || !repo) return;
 
     const updateInfo = await checkUpdateViaGitHub(owner, repo);

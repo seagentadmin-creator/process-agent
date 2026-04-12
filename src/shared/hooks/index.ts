@@ -6,7 +6,7 @@ export function useLocalStorage<T>(key: string, defaultValue: T): [T, (val: T) =
 
   useEffect(() => {
     chrome.storage.local.get(key).then((result) => {
-      if (result[key] !== undefined) setValue(result[key]);
+      if (result[key] !== undefined) setValue(result[key] as T);
     });
   }, [key]);
 

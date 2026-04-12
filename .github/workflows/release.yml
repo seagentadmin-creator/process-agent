@@ -12,13 +12,26 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+
       - run: npm install
+
       - run: npm test
-      - name: Package
-        run: zip -r process-agent-${{ github.ref_name }}.zip src/ docs/ installer/ package.json tsconfig.json webpack.config.js jest.config.js -x "node_modules/*"
+
+      - name: Build
+        run: npx webpack --mode production
+
+      - name: Package (dist only, no src)
+        run: |
+          mkdir -p release-package
+          cp -r dist/* release-package/
+          cp -r installer release-package/
+          cd release-package
+          zip -r ../process-agent-${{ github.ref_name }}.zip .
+
       - uses: softprops/action-gh-release@v1
         with:
           files: process-agent-${{ github.ref_name }}.zip

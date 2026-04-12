@@ -10,7 +10,7 @@ echo  ==================================================
 echo    Process Agent - Setup
 echo  ==================================================
 echo.
-echo    [A] Admin  - GitHub, Extension ID 설정
+echo    [A] Admin  - GitHub 설정, 팀 배포용
 echo    [U] User   - 설치, 업데이트
 echo.
 set /p ROLE="  선택 (A/U): "
@@ -30,7 +30,7 @@ echo  ==================================================
 echo    Admin Menu
 echo  ==================================================
 echo.
-echo    [1] 최초 설정
+echo    [1] 최초 설정 (GitHub 정보 등록)
 echo    [2] 상태 확인
 echo    [3] Native Host 재설치
 echo    [4] 제거
@@ -39,69 +39,49 @@ set /p AM="  선택 (1-4): "
 
 if "%AM%"=="1" goto :ADMIN_SETUP
 if "%AM%"=="2" goto :STATUS
-if "%AM%"=="3" goto :ADMIN_NH
+if "%AM%"=="3" goto :INSTALL_NH
 if "%AM%"=="4" goto :UNINSTALL
 echo  잘못된 선택입니다.
 pause & goto :ADMIN_MENU
 
 :: --------------------------------------------------
-::  Admin 최초 설정
+::  Admin 최초 설정 (Extension ID 불필요)
 :: --------------------------------------------------
 :ADMIN_SETUP
 cls
 echo.
-echo  --------------------------------------------------
-echo    Step 1/3 : Extension 등록 확인
-echo  --------------------------------------------------
+echo  ==================================================
+echo    Admin 최초 설정
+echo  ==================================================
 echo.
-echo  Extension을 브라우저에 먼저 등록해야 합니다.
+echo  Extension 등록을 먼저 해야 합니다.
 echo.
 echo  [Chrome]
 echo    1. 주소창에 chrome://extensions 입력
-echo    2. 우측 상단 "개발자 모드" 스위치 ON
-echo    3. 좌측 상단 "압축해제된 확장 프로그램을 로드합니다" 클릭
+echo    2. 우측 상단 "개발자 모드" ON
+echo    3. "압축해제된 확장 프로그램을 로드합니다" 클릭
 echo    4. 다운로드한 폴더 선택
 echo.
 echo  [Edge]
 echo    1. 주소창에 edge://extensions 입력
-echo    2. 좌측 하단 "개발자 모드" 스위치 ON
-echo    3. 상단 "압축을 푼 항목 로드" 클릭
+echo    2. 좌측 하단 "개발자 모드" ON
+echo    3. "압축을 푼 항목 로드" 클릭
 echo    4. 다운로드한 폴더 선택
 echo.
 set /p REG="  이미 등록했나요? (Y/n): "
 if /i "%REG%"=="n" (
-    echo.
-    echo  브라우저에서 등록 후 아무 키나 누르세요.
     start chrome://extensions
+    echo.
+    echo  등록 후 아무 키나 누르세요.
     pause >nul
-)
-
-:: Extension ID
-cls
-echo.
-echo  --------------------------------------------------
-echo    Step 2/3 : Extension ID 입력
-echo  --------------------------------------------------
-echo.
-echo  chrome://extensions 에서 Process Agent 카드를 찾으세요.
-echo  카드 하단에 ID가 표시되어 있습니다.
-echo.
-echo    예: abcdefghijklmnopqrstuvwxyzabcdef
-echo.
-echo  * "개발자 모드"가 ON이어야 ID가 보입니다.
-echo.
-set /p EXT_ID="  Extension ID: "
-if "%EXT_ID%"=="" (
-    echo  Extension ID를 입력해주세요.
-    pause & goto :ADMIN_SETUP
 )
 
 :: GitHub 정보
 cls
 echo.
-echo  --------------------------------------------------
-echo    Step 3/3 : GitHub 정보
-echo  --------------------------------------------------
+echo  ==================================================
+echo    GitHub 정보 설정
+echo  ==================================================
 echo.
 echo  자동 업데이트를 위한 GitHub 정보입니다.
 echo.
@@ -117,24 +97,16 @@ if "%GH_OWNER%"=="" set GH_OWNER=%DEFAULT_OWNER%
 set /p GH_REPO="  GitHub Repo  [%DEFAULT_REPO%]: "
 if "%GH_REPO%"=="" set GH_REPO=%DEFAULT_REPO%
 
-:: 설정 저장
+:: 설정 저장 (Extension ID는 포함하지 않음)
 (
 echo [ProcessAgent]
 echo GITHUB_OWNER=%GH_OWNER%
 echo GITHUB_REPO=%GH_REPO%
-echo EXTENSION_ID=%EXT_ID%
 ) > "%~dp0pa-config.ini"
 
-:: Native Host
+:: Native Host 설치
 echo.
-python --version >nul 2>&1
-if errorlevel 1 (
-    echo  * Python 미설치 - 자동 업데이트 비활성화
-    echo    https://www.python.org/downloads/
-) else (
-    set /p INH="  Native Host 설치 - 자동 업데이트 활성화 (Y/n): "
-    if /i not "!INH!"=="n" call :DO_NATIVE_HOST
-)
+call :INSTALL_NH
 
 cls
 echo.
@@ -142,34 +114,17 @@ echo  ==================================================
 echo    Admin 설정 완료
 echo  ==================================================
 echo.
-echo    Repository  : %GH_OWNER%/%GH_REPO%
-echo    Extension ID: %EXT_ID%
+echo    Repository: %GH_OWNER%/%GH_REPO%
 echo.
 echo    생성된 파일: pa-config.ini
 echo.
-echo    팀원에게 배포할 항목:
+echo    팀원에게 배포:
 echo      1. GitHub Release URL
-echo      2. pa-config.ini
+echo      2. pa-config.ini 파일
 echo.
-echo    팀원은 Release에서 zip 다운로드 후
-echo    setup.bat - [U] User 선택으로 설치합니다.
+echo    팀원은 Release zip 다운로드 후
+echo    setup.bat - [U] User 로 설치합니다.
 echo.
-pause
-goto :EOF
-
-:: --------------------------------------------------
-::  Admin Native Host 재설치
-:: --------------------------------------------------
-:ADMIN_NH
-if not exist "%~dp0pa-config.ini" (
-    echo.
-    echo  pa-config.ini가 없습니다. [1] 최초 설정을 먼저 실행하세요.
-    pause & goto :ADMIN_MENU
-)
-for /f "tokens=1,* delims==" %%a in ('findstr "EXTENSION_ID" "%~dp0pa-config.ini"') do set EXT_ID=%%b
-call :DO_NATIVE_HOST
-echo.
-echo  Native Host 재설치 완료
 pause
 goto :EOF
 
@@ -211,7 +166,6 @@ echo.
 if not exist "%~dp0pa-config.ini" (
     echo  pa-config.ini 파일이 없습니다.
     echo  Admin에게 pa-config.ini 파일을 요청하세요.
-    echo.
     pause & goto :EOF
 )
 
@@ -261,19 +215,8 @@ echo  Extension 등록 후 아무 키나 누르세요.
 pause >nul
 
 echo.
-echo  [3/3] Native Host 설치
-echo.
-
-for /f "tokens=1,* delims==" %%a in ('findstr "EXTENSION_ID" "%~dp0pa-config.ini"') do set EXT_ID=%%b
-
-python --version >nul 2>&1
-if errorlevel 1 (
-    echo  * Python 미설치 - 자동 업데이트 비활성화
-    echo    수동 업데이트: setup.bat - [U] - [2]
-) else (
-    set /p INH="  자동 업데이트 설치 (Y/n): "
-    if /i not "!INH!"=="n" call :DO_NATIVE_HOST
-)
+echo  [3/3] Native Host 설치 (자동 업데이트)
+call :INSTALL_NH
 
 cls
 echo.
@@ -283,6 +226,17 @@ echo  ==================================================
 echo.
 echo  브라우저에서 Process Agent 아이콘을 클릭하세요.
 echo  Side Panel이 열리면 성공입니다.
+echo.
+echo  --------------------------------------------------
+echo    업데이트 방법
+echo  --------------------------------------------------
+echo.
+echo    [자동] Native Host 설치됨
+echo      - Extension이 자동으로 업데이트합니다.
+echo.
+echo    [수동] Native Host 미설치
+echo      - setup.bat - [U] - [2] 업데이트 선택
+echo      - chrome://extensions 에서 새로고침 클릭
 echo.
 pause
 goto :EOF
@@ -335,125 +289,79 @@ pause
 goto :EOF
 
 :: ==================================================
-::  공통: 상태 확인
+::  Native Host 설치 (Extension ID 자동 감지)
 :: ==================================================
-:STATUS
-cls
+:INSTALL_NH
 echo.
-echo  ==================================================
-echo    설치 상태 확인
-echo  ==================================================
+echo  --------------------------------------------------
+echo    Native Host 설치 (자동 업데이트)
+echo  --------------------------------------------------
 echo.
 
-if exist "%~dp0pa-config.ini" (
-    echo  [OK] 설정 파일 있음
-    for /f "tokens=1,* delims==" %%a in ('findstr "GITHUB_OWNER" "%~dp0pa-config.ini"') do echo       GitHub: %%b
-    for /f "tokens=1,* delims==" %%a in ('findstr "EXTENSION_ID" "%~dp0pa-config.ini"') do echo       Extension ID: %%b
-) else (
-    echo  [--] 설정 파일 없음
-)
-
-if exist "%~dp0pa-user.ini" (
-    for /f "tokens=1,* delims==" %%a in ('findstr "INSTALL_DIR" "%~dp0pa-user.ini"') do echo  [OK] 설치 경로: %%b
-) else (
-    echo  [--] 사용자 설정 없음
-)
-
-if exist "%LOCALAPPDATA%\ProcessAgent\updater.py" (
-    echo  [OK] Native Host 설치됨
-) else (
-    echo  [--] Native Host 미설치
-)
-
-reg query "HKCU\Software\Google\Chrome\NativeMessagingHosts\com.process_agent.updater" >nul 2>&1
-if %errorlevel%==0 (echo  [OK] Registry Chrome 등록됨) else (echo  [--] Registry Chrome 미등록)
-
-reg query "HKCU\Software\Microsoft\Edge\NativeMessagingHosts\com.process_agent.updater" >nul 2>&1
-if %errorlevel%==0 (echo  [OK] Registry Edge 등록됨) else (echo  [--] Registry Edge 미등록)
-
+:: Python 확인
 python --version >nul 2>&1
-if %errorlevel%==0 (echo  [OK] Python 설치됨) else (echo  [--] Python 미설치)
-
-curl -s --connect-timeout 5 https://api.github.com >nul 2>&1
-if %errorlevel%==0 (echo  [OK] GitHub 접속 가능) else (echo  [--] GitHub 접속 불가)
-
-echo.
-pause
-goto :EOF
-
-:: ==================================================
-::  공통: 제거
-:: ==================================================
-:UNINSTALL
-cls
-echo.
-echo  ==================================================
-echo    Process Agent 제거
-echo  ==================================================
-echo.
-echo  Native Host와 Registry를 제거합니다.
-echo.
-set /p CF="  계속 하시겠습니까? (y/N): "
-if /i not "%CF%"=="y" (echo  취소됨. & pause & goto :EOF)
-
-echo.
-reg delete "HKCU\Software\Google\Chrome\NativeMessagingHosts\com.process_agent.updater" /f >nul 2>&1
-reg delete "HKCU\Software\Microsoft\Edge\NativeMessagingHosts\com.process_agent.updater" /f >nul 2>&1
-echo  [OK] Registry 제거
-
-if exist "%LOCALAPPDATA%\ProcessAgent" (
-    rmdir /s /q "%LOCALAPPDATA%\ProcessAgent"
-    echo  [OK] Native Host 제거
-)
-
-if exist "%~dp0pa-config.ini" del "%~dp0pa-config.ini"
-if exist "%~dp0pa-user.ini" del "%~dp0pa-user.ini"
-echo  [OK] 설정 파일 제거
-
-echo.
-echo  chrome://extensions 에서 Extension도 삭제하세요.
-echo.
-pause
-goto :EOF
-
-:: ==================================================
-::  함수: 다운로드
-:: ==================================================
-:DO_DOWNLOAD
-set TEMP_DIR=%TEMP%\pa-update
-if not exist "%TEMP_DIR%" mkdir "%TEMP_DIR%"
-
-curl -s "https://api.github.com/repos/%GH_OWNER%/%GH_REPO%/releases/latest" > "%TEMP_DIR%\release.json" 2>nul
 if errorlevel 1 (
-    echo  GitHub 접속 실패. 네트워크를 확인하세요.
-    exit /b 1
+    echo  * Python이 설치되어 있지 않습니다.
+    echo.
+    echo  --------------------------------------------------
+    echo    수동 업데이트 방법 안내
+    echo  --------------------------------------------------
+    echo.
+    echo    새 버전이 나오면 아래 방법으로 업데이트하세요:
+    echo.
+    echo    1. setup.bat 더블클릭
+    echo    2. [U] User 선택
+    echo    3. [2] 업데이트 선택
+    echo    4. 자동 다운로드 완료 후
+    echo       chrome://extensions 에서 새로고침 클릭
+    echo.
+    echo    Python을 설치하면 자동 업데이트가 가능합니다.
+    echo    https://www.python.org/downloads/
+    echo    (설치 시 "Add Python to PATH" 반드시 체크)
+    echo.
+    set /p SKIP_NH="  Native Host를 건너뛸까요? (Y/n): "
+    if /i not "!SKIP_NH!"=="n" exit /b 0
+    echo  Python 설치 후 다시 시도하세요.
+    exit /b 0
 )
 
-for /f "tokens=2 delims=:," %%a in ('findstr "tag_name" "%TEMP_DIR%\release.json"') do (
-    set NEW_VER=%%~a
-    echo  최신 버전: %%~a
+:: Extension ID 자동 감지
+echo  Extension ID 자동 감지 중...
+set EXT_ID=
+
+:: Chrome Preferences 파일에서 Process Agent 검색
+set PREFS_FILE=%LOCALAPPDATA%\Google\Chrome\User Data\Default\Preferences
+if exist "%PREFS_FILE%" (
+    for /f "tokens=*" %%a in ('powershell -Command "try { $j = Get-Content '%PREFS_FILE%' -Raw | ConvertFrom-Json; $j.extensions.settings.PSObject.Properties | ForEach-Object { if ($_.Value.manifest.name -eq 'Process Agent') { $_.Name } } } catch {}" 2^>nul') do set EXT_ID=%%a
 )
 
-set ZIP_URL=
-for /f "usebackq tokens=2 delims=: " %%a in (`findstr "browser_download_url" "%TEMP_DIR%\release.json"`) do set ZIP_URL=%%~a
-set ZIP_URL=https:%ZIP_URL%
-
-if "%ZIP_URL%"=="https:" (
-    echo  Release에 zip 파일이 없습니다.
-    exit /b 1
+:: Edge도 시도
+if "%EXT_ID%"=="" (
+    set PREFS_FILE=%LOCALAPPDATA%\Microsoft\Edge\User Data\Default\Preferences
+    if exist "!PREFS_FILE!" (
+        for /f "tokens=*" %%a in ('powershell -Command "try { $j = Get-Content '!PREFS_FILE!' -Raw | ConvertFrom-Json; $j.extensions.settings.PSObject.Properties | ForEach-Object { if ($_.Value.manifest.name -eq 'Process Agent') { $_.Name } } } catch {}" 2^>nul') do set EXT_ID=%%a
+    )
 )
 
-curl -sL -o "%TEMP_DIR%\update.zip" "%ZIP_URL%"
-powershell -Command "Expand-Archive -Force '%TEMP_DIR%\update.zip' '%INSTALL_DIR%'" 2>nul
+:: 자동 감지 결과
+if not "%EXT_ID%"=="" (
+    echo  [OK] 자동 감지 성공: %EXT_ID%
+    echo.
+) else (
+    echo  * 자동 감지 실패 - 수동 입력이 필요합니다.
+    echo.
+    echo  chrome://extensions 에서 Process Agent 카드의
+    echo  ID를 복사하세요. (개발자 모드 ON 필요)
+    echo.
+    set /p EXT_ID="  Extension ID: "
+    if "!EXT_ID!"=="" (
+        echo  Extension ID가 없어 Native Host를 건너뜁니다.
+        echo  수동 업데이트: setup.bat - [2] 선택
+        exit /b 0
+    )
+)
 
-del /q "%TEMP_DIR%\release.json" "%TEMP_DIR%\update.zip" 2>nul
-echo  [OK] 다운로드 완료
-exit /b 0
-
-:: ==================================================
-::  함수: Native Host 설치
-:: ==================================================
-:DO_NATIVE_HOST
+:: Native Host 파일 생성
 set NH_DIR=%LOCALAPPDATA%\ProcessAgent
 if not exist "%NH_DIR%" mkdir "%NH_DIR%"
 
@@ -492,13 +400,129 @@ echo @echo off
 echo "%PY_PATH%" "%NH_DIR%\updater.py"
 ) > "%NH_DIR%\run_updater.bat"
 
+:: Chrome + Edge 양쪽 등록
 echo {"name":"com.process_agent.updater","description":"Process Agent Updater","path":"%NH_DIR:\=\\%\\run_updater.bat","type":"stdio","allowed_origins":["chrome-extension://%EXT_ID%/"]} > "%NH_DIR%\manifest.chrome.json"
 echo {"name":"com.process_agent.updater","description":"Process Agent Updater","path":"%NH_DIR:\=\\%\\run_updater.bat","type":"stdio","allowed_origins":["chrome-extension://%EXT_ID%/"]} > "%NH_DIR%\manifest.edge.json"
 
 reg add "HKCU\Software\Google\Chrome\NativeMessagingHosts\com.process_agent.updater" /ve /t REG_SZ /d "%NH_DIR%\manifest.chrome.json" /f >nul 2>&1
 reg add "HKCU\Software\Microsoft\Edge\NativeMessagingHosts\com.process_agent.updater" /ve /t REG_SZ /d "%NH_DIR%\manifest.edge.json" /f >nul 2>&1
 
-echo  [OK] Native Host 설치 완료
+echo  [OK] Native Host 설치 완료 (자동 업데이트 활성화)
+exit /b 0
+
+:: ==================================================
+::  상태 확인
+:: ==================================================
+:STATUS
+cls
+echo.
+echo  ==================================================
+echo    설치 상태 확인
+echo  ==================================================
+echo.
+
+if exist "%~dp0pa-config.ini" (
+    echo  [OK] 설정 파일 있음
+    for /f "tokens=1,* delims==" %%a in ('findstr "GITHUB_OWNER" "%~dp0pa-config.ini"') do echo       GitHub: %%b
+) else (
+    echo  [--] 설정 파일 없음
+)
+
+if exist "%~dp0pa-user.ini" (
+    for /f "tokens=1,* delims==" %%a in ('findstr "INSTALL_DIR" "%~dp0pa-user.ini"') do echo  [OK] 설치 경로: %%b
+) else (
+    echo  [--] 사용자 설정 없음
+)
+
+if exist "%LOCALAPPDATA%\ProcessAgent\updater.py" (
+    echo  [OK] Native Host 설치됨
+) else (
+    echo  [--] Native Host 미설치
+)
+
+reg query "HKCU\Software\Google\Chrome\NativeMessagingHosts\com.process_agent.updater" >nul 2>&1
+if %errorlevel%==0 (echo  [OK] Registry Chrome 등록됨) else (echo  [--] Registry Chrome 미등록)
+
+reg query "HKCU\Software\Microsoft\Edge\NativeMessagingHosts\com.process_agent.updater" >nul 2>&1
+if %errorlevel%==0 (echo  [OK] Registry Edge 등록됨) else (echo  [--] Registry Edge 미등록)
+
+python --version >nul 2>&1
+if %errorlevel%==0 (echo  [OK] Python 설치됨) else (echo  [--] Python 미설치)
+
+curl -s --connect-timeout 5 https://api.github.com >nul 2>&1
+if %errorlevel%==0 (echo  [OK] GitHub 접속 가능) else (echo  [--] GitHub 접속 불가)
+
+echo.
+pause
+goto :EOF
+
+:: ==================================================
+::  제거
+:: ==================================================
+:UNINSTALL
+cls
+echo.
+echo  ==================================================
+echo    Process Agent 제거
+echo  ==================================================
+echo.
+echo  Native Host + Registry를 제거합니다.
+echo.
+set /p CF="  계속? (y/N): "
+if /i not "%CF%"=="y" (echo  취소됨. & pause & goto :EOF)
+
+echo.
+reg delete "HKCU\Software\Google\Chrome\NativeMessagingHosts\com.process_agent.updater" /f >nul 2>&1
+reg delete "HKCU\Software\Microsoft\Edge\NativeMessagingHosts\com.process_agent.updater" /f >nul 2>&1
+echo  [OK] Registry 제거
+
+if exist "%LOCALAPPDATA%\ProcessAgent" (
+    rmdir /s /q "%LOCALAPPDATA%\ProcessAgent"
+    echo  [OK] Native Host 제거
+)
+
+if exist "%~dp0pa-config.ini" del "%~dp0pa-config.ini"
+if exist "%~dp0pa-user.ini" del "%~dp0pa-user.ini"
+echo  [OK] 설정 파일 제거
+
+echo.
+echo  chrome://extensions 에서 Extension도 삭제하세요.
+echo.
+pause
+goto :EOF
+
+:: ==================================================
+::  다운로드 함수
+:: ==================================================
+:DO_DOWNLOAD
+set TEMP_DIR=%TEMP%\pa-update
+if not exist "%TEMP_DIR%" mkdir "%TEMP_DIR%"
+
+curl -s "https://api.github.com/repos/%GH_OWNER%/%GH_REPO%/releases/latest" > "%TEMP_DIR%\release.json" 2>nul
+if errorlevel 1 (
+    echo  GitHub 접속 실패. 네트워크를 확인하세요.
+    exit /b 1
+)
+
+for /f "tokens=2 delims=:," %%a in ('findstr "tag_name" "%TEMP_DIR%\release.json"') do (
+    set NEW_VER=%%~a
+    echo  최신 버전: %%~a
+)
+
+set ZIP_URL=
+for /f "usebackq tokens=2 delims=: " %%a in (`findstr "browser_download_url" "%TEMP_DIR%\release.json"`) do set ZIP_URL=%%~a
+set ZIP_URL=https:%ZIP_URL%
+
+if "%ZIP_URL%"=="https:" (
+    echo  Release에 zip 파일이 없습니다.
+    exit /b 1
+)
+
+curl -sL -o "%TEMP_DIR%\update.zip" "%ZIP_URL%"
+powershell -Command "Expand-Archive -Force '%TEMP_DIR%\update.zip' '%INSTALL_DIR%'" 2>nul
+
+del /q "%TEMP_DIR%\release.json" "%TEMP_DIR%\update.zip" 2>nul
+echo  [OK] 다운로드 완료
 exit /b 0
 
 :ERROR

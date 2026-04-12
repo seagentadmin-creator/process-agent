@@ -65,9 +65,9 @@ export const StructureView: React.FC<{ type: 'slm' | 'general' }> = ({ type }) =
 export const GlobalSearchModal: React.FC<{ open: boolean; onClose: () => void }> = ({ open, onClose }) => {
   const [query, setQuery] = useState('');
   const results = query.length >= 2 ? [
-    { key: 'TASK-201', summary: '인덱스 추가', type: 'SLM', status: 'In Progress' },
-    { key: 'TASK-098', summary: '전기점검 보고', type: 'SLM', status: 'In Progress' },
-    { key: 'TASK-301', summary: 'gzip 적용', type: '일반', status: 'In Progress' },
+    { key: 'DES-003', summary: '아키텍처 설계 검토', type: 'SLM', status: 'In Progress' },
+    { key: 'REQ-001', summary: '요구사항 정의서 작성', type: 'SLM', status: 'In Progress' },
+    { key: 'IMP-004', summary: '모듈 구현 - 인증', type: '일반', status: 'In Progress' },
   ].filter(r => r.summary.includes(query) || r.key.includes(query)) : [];
 
   if (!open) return null;
@@ -75,7 +75,7 @@ export const GlobalSearchModal: React.FC<{ open: boolean; onClose: () => void }>
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', justifyContent: 'center', paddingTop: 80, zIndex: 1000 }}>
       <div onClick={e => e.stopPropagation()} style={{ width: 360, background: 'var(--bg-primary)', borderRadius: 'var(--radius)', boxShadow: '0 8px 32px rgba(0,0,0,0.2)', maxHeight: 400, display: 'flex', flexDirection: 'column' }}>
         <div style={{ padding: 12, borderBottom: '1px solid var(--border)' }}>
-          <input autoFocus value={query} onChange={e => setQuery(e.target.value)} placeholder="🔍 과제 검색 (Cmd+K)"
+          <input autoFocus value={query} onChange={e => setQuery(e.target.value)} placeholder="🔍 과제 검색 (Ctrl+F)"
             style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius)', background: 'var(--bg-primary)', color: 'var(--text-primary)', fontSize: 13, outline: 'none' }} />
         </div>
         <div style={{ flex: 1, overflow: 'auto', padding: 8 }}>

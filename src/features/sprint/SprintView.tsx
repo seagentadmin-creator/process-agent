@@ -5,13 +5,13 @@ interface SprintIssue { key: string; summary: string; assignee: string; dueDate:
 
 const MOCK_COLUMNS = ['To Do', 'In Progress', 'Review', 'Done'];
 const MOCK_ISSUES: SprintIssue[] = [
-  { key: 'TASK-320', summary: '커넥션풀 최적화', assignee: '홍길동', dueDate: '04/20', status: 'To Do' },
-  { key: 'TASK-321', summary: '응답압축', assignee: '김철수', dueDate: '04/18', status: 'To Do' },
-  { key: 'TASK-201', summary: '인덱스 추가', assignee: '홍길동', dueDate: '04/12', status: 'In Progress' },
-  { key: 'TASK-301', summary: 'gzip 적용', assignee: '이영희', dueDate: '04/15', status: 'In Progress' },
-  { key: 'TASK-215', summary: '접지확인', assignee: '김철수', dueDate: '04/10', status: 'Review' },
-  { key: 'TASK-102', summary: '슬로우쿼리 분석', assignee: '이영희', dueDate: '04/05', status: 'Done' },
-  { key: 'TASK-205', summary: '파티션 분석', assignee: '김철수', dueDate: '04/03', status: 'Done' },
+  { key: 'REQ-010', summary: '요구사항 추적표 작성', assignee: '홍길동', dueDate: '04/20', status: 'To Do' },
+  { key: 'ANL-011', summary: '분석 문서 리뷰', assignee: '김철수', dueDate: '04/18', status: 'To Do' },
+  { key: 'DES-012', summary: '설계 검증 수행', assignee: '홍길동', dueDate: '04/12', status: 'In Progress' },
+  { key: 'IMP-013', summary: '모듈 구현 테스트', assignee: '이영희', dueDate: '04/15', status: 'In Progress' },
+  { key: 'IMP-014', summary: '코드 리뷰 반영', assignee: '김철수', dueDate: '04/10', status: 'Review' },
+  { key: 'TST-015', summary: '단위 테스트 작성', assignee: '이영희', dueDate: '04/05', status: 'Done' },
+  { key: 'TST-016', summary: '통합 테스트 완료', assignee: '김철수', dueDate: '04/03', status: 'Done' },
 ];
 
 export const SprintView: React.FC = () => {

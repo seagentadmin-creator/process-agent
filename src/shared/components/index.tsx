@@ -10,19 +10,29 @@ interface HeaderProps {
   onKpi: () => void;
   connectionStatus: 'connected' | 'disconnected' | 'checking';
   alertCount: number;
+  onAlert?: () => void;
+  isPopout?: boolean;
+  onClosePopout?: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ onPopout, onRefresh, onSettings, onAdmin, onKpi, connectionStatus, alertCount }) => (
+export const Header: React.FC<HeaderProps> = ({ onPopout, onRefresh, onSettings, onAdmin, onKpi, connectionStatus, alertCount, isPopout, onClosePopout, onAlert }) => (
   <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', borderBottom: '1px solid var(--border)', background: 'var(--bg-secondary)' }}>
-    <span style={{ fontWeight: 700, fontSize: 14 }}><img src="icons/icon-16.png" alt="" style={{ width: 16, height: 16, marginRight: 4, verticalAlign: 'middle' }} />{APP_CONFIG.name} v{APP_CONFIG.version}</span>
+    <span style={{ fontWeight: 700, fontSize: 14, display: 'flex', alignItems: 'center', gap: 4 }}>
+      <img src="icons/icon-16.png" alt="" style={{ width: 16, height: 16 }} />
+      {APP_CONFIG.name} v{APP_CONFIG.version}
+    </span>
     <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-      <IconBtn title="Pop-out" onClick={onPopout}>⛶</IconBtn>
+      {isPopout ? (
+        <IconBtn title="Close" onClick={onClosePopout || (() => {})}>✕</IconBtn>
+      ) : (
+        <IconBtn title="Pop-out" onClick={onPopout}>⛶</IconBtn>
+      )}
       <IconBtn title="Refresh" onClick={onRefresh}>🔄</IconBtn>
-      <span title={connectionStatus} style={{ fontSize: 10 }}>{connectionStatus === 'connected' ? '🟢' : connectionStatus === 'checking' ? '🟡' : '🔴'}</span>
+      <span title={connectionStatus} style={{ fontSize: 10, color: connectionStatus === 'connected' ? 'var(--success)' : connectionStatus === 'checking' ? 'var(--warning)' : 'var(--danger)' }}>●</span>
       <IconBtn title="KPI" onClick={onKpi}>📊</IconBtn>
       <IconBtn title="Settings" onClick={onSettings}>⚙️</IconBtn>
       <IconBtn title="Admin" onClick={onAdmin}>👤</IconBtn>
-      <span style={{ position: 'relative' }}>
+      <span onClick={onAlert} style={{ position: 'relative', cursor: 'pointer' }}>
         🔔{alertCount > 0 && <span style={{ position: 'absolute', top: -4, right: -4, background: 'var(--danger)', color: '#fff', borderRadius: '50%', fontSize: 9, width: 14, height: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{alertCount}</span>}
       </span>
     </div>
@@ -35,7 +45,6 @@ const IconBtn: React.FC<{ title: string; onClick: () => void; children: ReactNod
 
 // === Tabs ===
 interface TabItem { id: string; label: string; icon: string; }
-
 export const Tabs: React.FC<{ tabs: TabItem[]; active: string; onChange: (id: string) => void; rightContent?: ReactNode }> = ({ tabs, active, onChange, rightContent }) => (
   <div style={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid var(--border)', padding: '0 8px', background: 'var(--bg-secondary)' }}>
     <div style={{ display: 'flex', gap: 2, flex: 1 }}>
@@ -50,28 +59,20 @@ export const Tabs: React.FC<{ tabs: TabItem[]; active: string; onChange: (id: st
   </div>
 );
 
-// === SplitPane (vertical) ===
+// === SplitPane ===
 export const SplitPane: React.FC<{ top: ReactNode; bottom: ReactNode; defaultRatio?: number; storageKey?: string }> = ({ top, bottom, defaultRatio = 0.6, storageKey }) => {
   const [ratio, setRatio] = useState(defaultRatio);
   const containerRef = useRef<HTMLDivElement>(null);
   const dragging = useRef(false);
-
   const onMouseDown = useCallback(() => { dragging.current = true; }, []);
-  const onMouseUp = useCallback(() => {
-    dragging.current = false;
-    if (storageKey) chrome.storage.local.set({ [storageKey]: ratio });
-  }, [ratio, storageKey]);
-
+  const onMouseUp = useCallback(() => { dragging.current = false; }, []);
   const onMouseMove = useCallback((e: React.MouseEvent) => {
     if (!dragging.current || !containerRef.current) return;
     const rect = containerRef.current.getBoundingClientRect();
-    const newRatio = Math.max(0.2, Math.min(0.8, (e.clientY - rect.top) / rect.height));
-    setRatio(newRatio);
+    setRatio(Math.max(0.2, Math.min(0.8, (e.clientY - rect.top) / rect.height)));
   }, []);
-
   return (
-    <div ref={containerRef} onMouseMove={onMouseMove} onMouseUp={onMouseUp}
-      style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+    <div ref={containerRef} onMouseMove={onMouseMove} onMouseUp={onMouseUp} style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
       <div style={{ height: `${ratio * 100}%`, overflow: 'auto' }}>{top}</div>
       <div onMouseDown={onMouseDown} style={{ height: 4, background: 'var(--border)', cursor: 'row-resize', flexShrink: 0 }} />
       <div style={{ flex: 1, overflow: 'auto' }}>{bottom}</div>
@@ -81,6 +82,12 @@ export const SplitPane: React.FC<{ top: ReactNode; bottom: ReactNode; defaultRat
 
 // === Modal ===
 export const Modal: React.FC<{ open: boolean; onClose: () => void; title: string; children: ReactNode; width?: number }> = ({ open, onClose, title, children, width = 380 }) => {
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [open, onClose]);
   if (!open) return null;
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
@@ -96,22 +103,19 @@ export const Modal: React.FC<{ open: boolean; onClose: () => void; title: string
 };
 
 // === Toast ===
-interface ToastData { message: string; type: 'success' | 'error' | 'info'; undoAction?: () => void; }
-
-export const Toast: React.FC<ToastData & { onClose: () => void }> = ({ message, type, undoAction, onClose }) => {
-  useEffect(() => { const t = setTimeout(onClose, undoAction ? 5000 : 3000); return () => clearTimeout(t); }, []);
+export const Toast: React.FC<{ message: string; type: 'success' | 'error' | 'info'; onClose: () => void }> = ({ message, type, onClose }) => {
+  useEffect(() => { const t = setTimeout(onClose, 3000); return () => clearTimeout(t); }, []);
   const colors = { success: 'var(--success)', error: 'var(--danger)', info: 'var(--accent)' };
   return (
-    <div style={{ position: 'fixed', bottom: 16, left: '50%', transform: 'translateX(-50%)', background: colors[type], color: '#fff', padding: '8px 16px', borderRadius: 'var(--radius)', boxShadow: 'var(--shadow)', display: 'flex', gap: 12, alignItems: 'center', zIndex: 2000, fontSize: 12 }}>
-      <span>{type === 'success' ? '✅' : type === 'error' ? '❌' : 'ℹ️'} {message}</span>
-      {undoAction && <button onClick={() => { undoAction(); onClose(); }} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', padding: '2px 8px', borderRadius: 4, cursor: 'pointer' }}>↩ 되돌리기</button>}
+    <div style={{ position: 'fixed', bottom: 16, left: '50%', transform: 'translateX(-50%)', background: colors[type], color: '#fff', padding: '8px 16px', borderRadius: 'var(--radius)', boxShadow: 'var(--shadow)', fontSize: 12, zIndex: 2000 }}>
+      {type === 'success' ? '✅' : type === 'error' ? '❌' : 'ℹ️'} {message}
     </div>
   );
 };
 
 // === EmptyState ===
 export const EmptyState: React.FC<{ icon: string; title: string; description: string; action?: { label: string; onClick: () => void } }> = ({ icon, title, description, action }) => (
-  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 20px', color: 'var(--text-secondary)' }}>
+  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 20px', color: 'var(--text-secondary)', cursor: action ? 'pointer' : 'default' }} onClick={action?.onClick}>
     <span style={{ fontSize: 32, marginBottom: 12 }}>{icon}</span>
     <span style={{ fontWeight: 600, marginBottom: 4, color: 'var(--text-primary)' }}>{title}</span>
     <span style={{ fontSize: 12, marginBottom: 12, textAlign: 'center' }}>{description}</span>
@@ -127,7 +131,7 @@ export const Skeleton: React.FC<{ width?: string; height?: number; count?: numbe
 );
 
 // === StatusBadge ===
-const STATUS_COLORS: Record<string, string> = { 'To Do': '#6c757d', 'In Progress': '#ffc107', 'Review': '#0dcaf0', 'Resolve': '#198754', 'Done': '#198754', 'Closed': '#adb5bd' };
+const STATUS_COLORS: Record<string, string> = { 'To Do': '#6c757d', 'In Progress': '#ffc107', 'Review': '#0dcaf0', 'Resolve': '#198754', 'Done': '#198754', 'Closed': '#adb5bd', '요구사항': '#6c757d', '분석': '#0dcaf0', '설계': '#ffc107', '구현': '#fd7e14', '테스트': '#0d6efd', '검증': '#6f42c1', '완료': '#198754' };
 export const StatusBadge: React.FC<{ status: string }> = ({ status }) => (
   <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 10, fontSize: 10, fontWeight: 600, background: `${STATUS_COLORS[status] || '#6c757d'}22`, color: STATUS_COLORS[status] || '#6c757d' }}>{status}</span>
 );
@@ -149,9 +153,7 @@ export const CollapsibleBar: React.FC<{ summary: string; onEdit: () => void; exp
         <span>📂 {summary}</span>
         <button onClick={onEdit} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12 }}>✏️ 변경</button>
       </div>
-    ) : (
-      <div style={{ padding: 12 }}>{children}</div>
-    )}
+    ) : <div style={{ padding: 12 }}>{children}</div>}
   </div>
 );
 
@@ -162,7 +164,7 @@ export const Card: React.FC<{ children: ReactNode; onClick?: () => void; selecte
   </div>
 );
 
-// === Accordion ===
+// === Accordion (1개만 열림) ===
 export const Accordion: React.FC<{ items: { id: string; icon: string; label: string; content: ReactNode }[]; activeId: string | null; onChange: (id: string | null) => void }> = ({ items, activeId, onChange }) => (
   <div>
     <div style={{ display: 'flex', gap: 4, padding: '6px 0' }}>

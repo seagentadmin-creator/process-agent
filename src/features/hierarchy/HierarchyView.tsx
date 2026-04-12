@@ -60,7 +60,7 @@ export const HierarchyView: React.FC<{ type: 'slm' | 'general'; viewMode?: 'tree
         <button onClick={() => setMode(mode === 'tree' ? 'table' : 'tree')} style={{ padding: '4px 8px', border: '1px solid var(--border)', borderRadius: 4, background: 'var(--bg-secondary)', cursor: 'pointer', fontSize: 10 }}>{mode === 'tree' ? '📐 Table' : '🌳 Tree'}</button>
       </div>
       <div style={{ display: 'flex', gap: 4, alignItems: 'center', fontSize: 10, flexWrap: 'wrap' }}>
-        {type === 'slm' ? ['요구사항', '분석', '설계', '구현', '테스트', '검증', '완료'] : ['To Do', 'In Progress', 'Review', 'Done'].map(s => (
+        {(type === 'slm' ? ['요구사항', '분석', '설계', '구현', '테스트', '검증', '완료'] : ['To Do', 'In Progress', 'Review', 'Done']).map(s => (
           <button key={s} onClick={() => setStatusFilter(prev => prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s])}
             style={{ padding: '2px 6px', borderRadius: 4, border: '1px solid var(--border)', background: statusFilter.includes(s) ? 'var(--accent)' : 'var(--bg-secondary)', color: statusFilter.includes(s) ? '#fff' : 'var(--text-primary)', cursor: 'pointer', fontSize: 10 }}>{s}</button>
         ))}
@@ -87,13 +87,14 @@ export const HierarchyView: React.FC<{ type: 'slm' | 'general'; viewMode?: 'tree
               {hasChildren ? <span onClick={e => { e.stopPropagation(); toggle(node.key); }} style={{ width: 16, cursor: 'pointer', color: 'var(--text-secondary)' }}>{isExpanded ? '▼' : '▶'}</span> : <span style={{ width: 16 }} />}
               <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{node.key}: {node.summary}</span>
               {node.status && <StatusBadge status={node.status} />}
+              <button onClick={e => { e.stopPropagation(); alert(`${node.key} 하위에 Issue 생성`); }} style={{ marginLeft: 4, background: 'none', border: 'none', cursor: 'pointer', fontSize: 12 }} title="하위 Issue 생성">➕</button>
             </div>
           );
         })}</div>
       ) : (
         <div style={{ fontSize: 11 }}>
           <div style={{ display: 'flex', padding: '4px 8px', background: 'var(--bg-tertiary)', fontWeight: 600, borderBottom: '1px solid var(--border)' }}>
-            <span style={{ width: 28 }}>#</span><span style={{ width: 80 }}>Key</span><span style={{ flex: 1 }}>Summary</span><span style={{ width: 80, textAlign: 'center' }}>Status</span>
+            <span style={{ width: 28 }}>#</span><span style={{ width: 80 }}>Key</span><span style={{ flex: 1 }}>Summary</span><span style={{ width: 80, textAlign: 'center' }}>Status</span><span style={{ width: 24 }}></span>
           </div>
           {flatNodes.map(({ node, depth }, i) => (
             <div key={node.key} onClick={() => setSelected(node.key)}
@@ -105,6 +106,7 @@ export const HierarchyView: React.FC<{ type: 'slm' | 'general'; viewMode?: 'tree
                 {node.summary}
               </span>
               <span style={{ width: 80, textAlign: 'center' }}>{node.status && <StatusBadge status={node.status} />}</span>
+              <button onClick={e => { e.stopPropagation(); alert(`${node.key} 하위에 Issue 생성`); }} style={{ width: 24, background: 'none', border: 'none', cursor: 'pointer', fontSize: 12 }}>➕</button>
             </div>
           ))}
         </div>

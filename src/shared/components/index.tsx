@@ -18,7 +18,7 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({ onPopout, onRefresh, onSettings, onAdmin, onKpi, connectionStatus, alertCount, isPopout, onClosePopout, onAlert }) => (
   <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', borderBottom: '1px solid var(--border)', background: 'var(--bg-secondary)' }}>
     <span style={{ fontWeight: 700, fontSize: 14, display: 'flex', alignItems: 'center', gap: 4 }}>
-      <img src="icons/icon-16.png" alt="" style={{ width: 16, height: 16 }} />
+      <img src={(() => { try { return chrome.runtime.getURL("icons/icon-16.png"); } catch { return "icons/icon-16.png"; } })()} alt="" style={{ width: 16, height: 16 }} />
       {APP_CONFIG.name} v{APP_CONFIG.version}
     </span>
     <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>

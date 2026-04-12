@@ -81,7 +81,7 @@ export const App: React.FC = () => {
       <Modal open={settingsOpen} onClose={() => setSettingsOpen(false)} title="⚙️ 설정">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12, fontSize: 12 }}>
           <label>테마 <select value={theme} onChange={e => setTheme(e.target.value)} style={{ marginLeft: 8, padding: '4px 8px' }}><option value="system">시스템</option><option value="light">라이트</option><option value="dark">다크</option></select></label>
-          <label>PAT 저장 <select style={{ marginLeft: 8, padding: '4px 8px' }}><option>세션만 유지 (권장)</option><option>로컬 저장</option></select></label>
+          <label>PAT 저장 <select style={{ marginLeft: 8, padding: '4px 8px' }}><option>세션만 유지</option><option>로컬 저장</option></select></label>
           <button style={{ padding: '6px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius)', background: 'var(--bg-secondary)', cursor: 'pointer', fontSize: 12 }}>🔄 온보딩 투어 다시 보기</button>
         </div>
       </Modal>

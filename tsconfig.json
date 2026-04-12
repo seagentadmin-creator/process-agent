@@ -3,7 +3,7 @@
     "target": "ES2020",
     "module": "ESNext",
     "moduleResolution": "node",
-    "lib": ["ES2020", "DOM"],
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
     "jsx": "react-jsx",
     "strict": false,
     "esModuleInterop": true,
@@ -14,7 +14,13 @@
     "rootDir": "./src",
     "baseUrl": "./src",
     "types": ["chrome", "jest"],
-    "ignoreDeprecations": "6.0"
+    "ignoreDeprecations": "6.0",
+    "paths": {
+      "@core/*": ["core/*"],
+      "@domain/*": ["domain/*"],
+      "@features/*": ["features/*"],
+      "@shared/*": ["shared/*"]
+    }
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "tests"]

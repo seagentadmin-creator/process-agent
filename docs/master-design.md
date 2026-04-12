@@ -48,7 +48,7 @@
 | F-14 | Onboarding Tour | ✅ | 5단계 가이드, 자동 표시, 다시보기 |
 | F-15 | Global Search (Ctrl+F) | ✅ | 모달, ESC 닫기 |
 | F-16 | Shortcut Settings | ✅ | 목록 모달 |
-| F-17 | Issue Creation (Structure) | ✅ | Structure [+] 연결, Wizard |
+| F-17 | Issue Creation (Structure) | ✅ | [+]→3단계 Wizard, SLM(L4~L7)/일반(SW-Task+Component 등 7종), 기본값 자동 |
 | F-18 | Reference/Reuse | ✅ | 유사과제, 필드 선택, 클립보드 복사 |
 
 ---

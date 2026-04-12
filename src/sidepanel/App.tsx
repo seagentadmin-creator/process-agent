@@ -85,6 +85,7 @@ export const App: React.FC = () => {
   const [jiraUrl, setJiraUrl] = useState('');
   const [confluenceUrl, setConfluenceUrl] = useState('');
   const [pat, setPat] = useState('');
+  const [defaultComponent, setDefaultComponent] = useState('Common');
 
   const isPopout = typeof window !== 'undefined' && window.location?.search?.includes('popout=true');
   const showToast = useCallback((msg: string, type: 'success' | 'error' | 'info' = 'success') => setToast({ message: msg, type }), []);
@@ -151,6 +152,11 @@ export const App: React.FC = () => {
             <label style={{ display: 'block', marginBottom: 8 }}>Jira URL<input value={jiraUrl} onChange={e => setJiraUrl(e.target.value)} placeholder="https://jira.company.com" style={inputSt} /></label>
             <label style={{ display: 'block', marginBottom: 8 }}>Confluence URL<input value={confluenceUrl} onChange={e => setConfluenceUrl(e.target.value)} placeholder="https://confluence.company.com" style={inputSt} /></label>
             <label style={{ display: 'block' }}>PAT<input type="password" value={pat} onChange={e => setPat(e.target.value)} placeholder="Personal Access Token" style={inputSt} /></label>
+          </fieldset>
+          <fieldset style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 12 }}>
+            <legend style={{ fontWeight: 700, fontSize: 11, padding: '0 4px' }}>📋 Issue 기본값</legend>
+            <label style={{ display: 'block' }}>SW-Task Component (기본값)<input value={defaultComponent} onChange={e => setDefaultComponent(e.target.value)} placeholder="Common" style={inputSt} /></label>
+            <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginTop: 4 }}>Issue 생성 시 Component 필드에 자동 설정됩니다.</div>
           </fieldset>
           <fieldset style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 12 }}>
             <legend style={{ fontWeight: 700, fontSize: 11 }}>🎨 화면</legend>

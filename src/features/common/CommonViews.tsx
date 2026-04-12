@@ -94,24 +94,40 @@ export const GlobalSearchModal: React.FC<{ open: boolean; onClose: () => void }>
 };
 
 // === Issue Create Wizard (3-step) ===
-export const IssueCreateView: React.FC<{ parentKey: string; parentSummary: string; onClose: () => void; type: 'slm' | 'general' }> = ({ parentKey, parentSummary, onClose, type }) => {
+export const IssueCreateView: React.FC<{ parentKey: string; parentSummary: string; onClose: () => void; type: 'slm' | 'general'; defaultComponent?: string }> = ({ parentKey, parentSummary, onClose, type, defaultComponent = 'Common' }) => {
+  const ISSUE_TYPES = ['SW-Task', 'Requirement', 'Defect', 'Task', 'Sub-Task', 'Epic', 'Story'];
+  const STATUS_MAP: Record<string, string[]> = {
+    'SW-Task': ['To Do', 'In Progress', 'Review', 'Done'],
+    'Requirement': ['Draft', 'Review', 'Approved', 'Closed'],
+    'Defect': ['Open', 'In Progress', 'Fixed', 'Verified', 'Closed'],
+    'Task': ['To Do', 'In Progress', 'Done'],
+    'Sub-Task': ['To Do', 'In Progress', 'Done'],
+    'Epic': ['To Do', 'In Progress', 'Done'],
+    'Story': ['To Do', 'In Progress', 'Review', 'Done'],
+  };
+
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [issueType, setIssueType] = useState('SW-Task');
   const [summary, setSummary] = useState('');
   const [description, setDescription] = useState('');
-  const [dueDate, setDueDate] = useState('');
+  const [component, setComponent] = useState(defaultComponent);
+  const [dueDate, setDueDate] = useState(new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0]);
   const [assignee, setAssignee] = useState('홍길동');
   const [created, setCreated] = useState(false);
+
+  const showComponent = issueType === 'SW-Task';
+  const statuses = STATUS_MAP[issueType] || ['To Do', 'In Progress', 'Done'];
+  const defaultStatus = statuses[0];
 
   if (created) {
     return (
       <div style={{ padding: 16, textAlign: 'center' }}>
         <div style={{ fontSize: 32, marginBottom: 8 }}>✅</div>
         <div style={{ fontWeight: 700, marginBottom: 4 }}>Issue 생성 완료</div>
-        <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12 }}>TASK-999 {summary}</div>
-        <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+        <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12 }}>{issueType}-NEW {summary}</div>
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
           <button onClick={() => openJiraIssue('NEW-001')} style={btnStyle}>🔗 Jira에서 열기</button>
-          <button onClick={() => { setCreated(false); setStep(1); setSummary(''); }} style={{ ...btnStyle, background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}>➕ 추가 생성</button>
+          <button onClick={() => { setCreated(false); setStep(1); setSummary(''); setDescription(''); }} style={{ ...btnStyle, background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}>➕ 추가 생성</button>
           <button onClick={onClose} style={{ ...btnStyle, background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}>← 목록</button>
         </div>
       </div>
@@ -120,19 +136,31 @@ export const IssueCreateView: React.FC<{ parentKey: string; parentSummary: strin
 
   return (
     <div style={{ padding: 12, fontSize: 12 }}>
-      <div style={{ fontWeight: 700, marginBottom: 8 }}>📝 Issue 생성 ({step}/3)</div>
-      <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 12 }}>📂 위치: {parentKey} ({parentSummary}) 하위</div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+        <div style={{ fontWeight: 700 }}>📝 Issue 생성 ({step}/3)</div>
+        <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: 'var(--text-secondary)' }}>✕</button>
+      </div>
+      <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 12, padding: '4px 8px', background: 'var(--bg-secondary)', borderRadius: 'var(--radius)' }}>📂 상위: {parentKey} ({parentSummary})</div>
 
       {step === 1 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <label>Issue Type
             <select value={issueType} onChange={e => setIssueType(e.target.value)} style={inputStyle}>
-              <option>SW-Task</option><option>Task</option><option>Bug</option>
+              {ISSUE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
             </select>
           </label>
-          <label>Summary<input value={summary} onChange={e => setSummary(e.target.value)} placeholder="제목 입력..." style={inputStyle} /></label>
-          <label>Description<textarea value={description} onChange={e => setDescription(e.target.value)} rows={4} style={{ ...inputStyle, resize: 'vertical' }} /></label>
-          <div style={{ textAlign: 'right' }}><button onClick={() => setStep(2)} disabled={!summary} style={btnStyle}>다음 →</button></div>
+          <div style={{ fontSize: 10, color: 'var(--text-secondary)', padding: '3px 8px', background: 'var(--bg-tertiary)', borderRadius: 'var(--radius)' }}>
+            Status: {statuses.map((s, i) => <span key={s}>{i > 0 ? ' → ' : ''}<span style={{ fontWeight: 600 }}>{s}</span></span>)}
+          </div>
+          <label>Summary<input value={summary} onChange={e => setSummary(e.target.value)} placeholder="제목 입력..." style={inputStyle} autoFocus /></label>
+          <label>Description<textarea value={description} onChange={e => setDescription(e.target.value)} rows={3} placeholder="상세 내용..." style={{ ...inputStyle, resize: 'vertical' }} /></label>
+          {showComponent && (
+            <label>Component
+              <input value={component} onChange={e => setComponent(e.target.value)} style={inputStyle} />
+              <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginTop: 2 }}>⚙️ 설정에서 기본값 변경 가능</div>
+            </label>
+          )}
+          <div style={{ textAlign: 'right' }}><button onClick={() => setStep(2)} disabled={!summary} style={{ ...btnStyle, opacity: summary ? 1 : 0.5 }}>다음 →</button></div>
         </div>
       )}
 
@@ -150,8 +178,13 @@ export const IssueCreateView: React.FC<{ parentKey: string; parentSummary: strin
       {step === 3 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <div style={{ background: 'var(--bg-secondary)', padding: 10, borderRadius: 'var(--radius)', fontSize: 11 }}>
-            <Row l="Issue Type" r={issueType} /><Row l="Summary" r={summary} /><Row l="Due Date" r={dueDate || '미설정'} />
-            <Row l="Assignee" r={assignee} /><Row l="상위 과제" r={parentKey} /><Row l="Status" r="To Do (기본)" />
+            <Row l="Issue Type" r={issueType} />
+            <Row l="Summary" r={summary} />
+            {showComponent && <Row l="Component" r={component} />}
+            <Row l="Due Date" r={dueDate || '미설정'} />
+            <Row l="Assignee" r={assignee} />
+            <Row l="상위 과제" r={parentKey} />
+            <Row l="초기 Status" r={defaultStatus} />
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
             <button onClick={() => setStep(2)} style={{ ...btnStyle, background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}>← 이전</button>

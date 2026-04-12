@@ -1,3 +1,4 @@
+import { openJiraIssue } from '../../shared/constants/jira-link';
 import React, { useState } from 'react';
 import { SplitPane, Card, StatusBadge, SearchInput, EmptyState, Accordion } from '../../shared/components';
 
@@ -58,7 +59,7 @@ export const TaskListView: React.FC<Props> = ({ type }) => {
                 ))}
               </div>
               {refFields.length > 0 && (
-                <button style={{ marginTop: 6, padding: '4px 12px', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 10, fontWeight: 600 }}>→ 선택 필드 복사 ({refFields.length}개)</button>
+                <button onClick={() => { const ref = REFERENCE_DATA.find(x => x.key === refSelected); const copyText = refFields.map(f => `[${f}] ${ref?.key || ''} → 복사됨`).join('\n'); try { navigator.clipboard.writeText(copyText); } catch {} alert(`${refFields.length}개 필드 복사 완료:\n${refFields.join(', ')}`); }} style={{ marginTop: 6, padding: '4px 12px', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 10, fontWeight: 600 }}>→ 클립보드 복사 ({refFields.length}개)</button>
               )}
             </div>
           )}
@@ -85,7 +86,7 @@ export const TaskListView: React.FC<Props> = ({ type }) => {
   const preview = selectedTask ? (
     <div style={{ padding: 12 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-        <span style={{ fontWeight: 700 }}>{selectedTask.key} {selectedTask.summary}</span>
+        <span style={{ fontWeight: 700 }}><span onClick={() => openJiraIssue(selectedTask.key)} style={{ color: "var(--accent)", cursor: "pointer", textDecoration: "underline" }}>{selectedTask.key}</span> {selectedTask.summary}</span>
         <button style={{ background: 'none', border: 'none', cursor: 'pointer' }}>⭐</button>
       </div>
       <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 8 }}>
@@ -122,7 +123,7 @@ const TaskGroup: React.FC<{ title: string; tasks: any[]; selected: string | null
         <Card key={t.key} selected={selected === t.key} onClick={() => onSelect(t.key)}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
-              <div style={{ fontSize: 12, fontWeight: 500 }}>{t.key} {t.summary}</div>
+              <div style={{ fontSize: 12, fontWeight: 500 }}><span onClick={(e: any) => { e.stopPropagation(); openJiraIssue(t.key); }} style={{ color: "var(--accent)", cursor: "pointer", textDecoration: "underline" }}>{t.key}</span> {t.summary}</div>
               <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>📅 {t.dueDate} · {t.delay < 0 ? `${Math.abs(t.delay)}일 지연` : `D-${t.delay}`}</div>
             </div>
             <StatusBadge status={t.status} />

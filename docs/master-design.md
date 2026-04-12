@@ -49,7 +49,7 @@
 | F-15 | Global Search (Ctrl+F) | ✅ | 모달, ESC 닫기 |
 | F-16 | Shortcut Settings | ✅ | 목록 모달 |
 | F-17 | Issue Creation (Structure) | ✅ | Structure [+] 연결, Wizard |
-| F-18 | Reference/Reuse | ✅ | 유사과제, 필드 선택 복사 |
+| F-18 | Reference/Reuse | ✅ | 유사과제, 필드 선택, 클립보드 복사 |
 
 ---
 
@@ -555,4 +555,42 @@ core/api/confluence-client.ts   ← CRUD (기존)
 domain/version/version-manager.ts ← 버전 비교/승격 로직 (기존)
 sidepanel/App.tsx               ← Admin 버전 관리 UI (구현됨)
 background/service-worker.ts    ← Polling + 버전 체크 (기존)
+```
+
+---
+
+## 11. Issue Key 링크 정책
+
+### 전체 적용 현황
+
+```
+모든 Issue Key는 클릭 시 Jira 페이지로 이동:
+  → openJiraIssue(key) → window.open(jiraUrl + '/browse/' + key)
+
+적용 View:
+  ✅ Dashboard    — 긴급 과제, 상세 모달
+  ✅ TaskList     — 과제 목록, 선택 상세
+  ✅ Hierarchy    — Tree 뷰, Table 뷰, 선택 상세
+  ✅ Sprint       — 칸반 카드
+  ✅ CommonViews  — Structure 테이블, Issue 생성 결과
+  ✅ VOC          — 등록 결과
+  ✅ AI Chat      — (import 준비)
+
+스타일: color: accent, cursor: pointer, textDecoration: underline
+유틸: shared/constants/jira-link.ts
+```
+
+### 참조/재사용 복사 기능
+
+```
+동작:
+  1. 유사 과제 목록에서 과제 선택
+  2. 복사할 필드 선택 (description, attachments 등)
+  3. [→ 클립보드 복사] 클릭
+  4. navigator.clipboard.writeText()로 복사
+  5. 복사 완료 alert 표시
+
+Phase 2:
+  → 클립보드가 아닌 현재 과제 필드에 직접 주입
+  → Jira API PUT /rest/api/2/issue/{key} 호출
 ```

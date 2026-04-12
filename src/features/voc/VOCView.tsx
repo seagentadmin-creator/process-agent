@@ -1,3 +1,4 @@
+import { openJiraIssue } from '../../shared/constants/jira-link';
 import React, { useState } from 'react';
 import { Card, EmptyState, SearchInput } from '../../shared/components';
 import { APP_CONFIG } from '../../shared/constants/app-config';
@@ -26,7 +27,7 @@ export const VOCView: React.FC = () => {
         <div style={{ fontWeight: 700, marginBottom: 4 }}>VOC 등록 완료</div>
         <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 16 }}>TASK-VOC-001이 생성되었습니다.<br/>Watcher에게 알림이 전송됩니다.</div>
         <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
-          <Btn onClick={() => window.open('#')}>🔗 Jira에서 열기</Btn>
+          <Btn onClick={() => openJiraIssue('VOC-001')}>🔗 Jira에서 열기</Btn>
           <Btn variant="secondary" onClick={() => { setSubmitted(false); setStep(1); setData({ project: '', structure: '', parentIssue: '', summary: '', description: '', category: '개선요청', priority: 'Medium' }); }}>➕ 추가 등록</Btn>
         </div>
       </div>

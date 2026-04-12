@@ -1,3 +1,4 @@
+import { openJiraIssue } from '../../shared/constants/jira-link';
 import React, { useState } from 'react';
 import { SplitPane, SearchInput, StatusBadge, EmptyState, Accordion, Modal } from '../../shared/components';
 
@@ -34,7 +35,7 @@ export const StructureView: React.FC<{ type: 'slm' | 'general' }> = ({ type }) =
           <div key={row.key} onClick={() => setSelected(row.key)}
             style={{ display: 'flex', alignItems: 'center', padding: '4px 8px', borderBottom: '1px solid var(--bg-tertiary)', cursor: 'pointer', background: selected === row.key ? 'var(--accent)08' : 'transparent' }}>
             <span style={{ width: 28, color: 'var(--text-secondary)' }}>{row.row}</span>
-            <span style={{ width: 70, fontSize: 10 }}>{row.key}</span>
+            <span style={{ width: 70, fontSize: 10 }}><span onClick={(e: any) => { e.stopPropagation(); openJiraIssue(row.key); }} style={{ color: "var(--accent)", cursor: "pointer", textDecoration: "underline" }}>{row.key}</span></span>
             <span style={{ flex: 1, paddingLeft: row.depth * 12 }}>{row.summary}</span>
             <span style={{ width: 70, textAlign: 'center' }}>{row.status && <StatusBadge status={row.status} />}</span>
             <span style={{ width: 28 }}>{row.canCreate && <button style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12 }}>➕</button>}</span>
@@ -109,7 +110,7 @@ export const IssueCreateView: React.FC<{ parentKey: string; parentSummary: strin
         <div style={{ fontWeight: 700, marginBottom: 4 }}>Issue 생성 완료</div>
         <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12 }}>TASK-999 {summary}</div>
         <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
-          <button onClick={() => window.open('#')} style={btnStyle}>🔗 Jira에서 열기</button>
+          <button onClick={() => openJiraIssue('NEW-001')} style={btnStyle}>🔗 Jira에서 열기</button>
           <button onClick={() => { setCreated(false); setStep(1); setSummary(''); }} style={{ ...btnStyle, background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}>➕ 추가 생성</button>
           <button onClick={onClose} style={{ ...btnStyle, background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}>← 목록</button>
         </div>

@@ -1,3 +1,4 @@
+import { openJiraIssue } from '../../shared/constants/jira-link';
 import React, { useState, useCallback } from 'react';
 import { Card, Modal, EmptyState, SearchInput, StatusBadge } from '../../shared/components';
 
@@ -74,7 +75,7 @@ export const SprintView: React.FC = () => {
                 {colIssues.map(issue => (
                   <div key={issue.key} draggable onDragStart={() => setDragItem(issue.key)}
                     style={{ padding: 6, background: 'var(--bg-primary)', borderRadius: 4, border: '1px solid var(--border)', cursor: 'grab', fontSize: 10 }}>
-                    <div style={{ fontWeight: 600, marginBottom: 2 }}>{issue.key}</div>
+                    <div style={{ fontWeight: 600, marginBottom: 2 }}><span onClick={(e: any) => { e.stopPropagation(); openJiraIssue(issue.key); }} style={{ color: "var(--accent)", cursor: "pointer", textDecoration: "underline" }}>{issue.key}</span></div>
                     <div style={{ marginBottom: 2, lineHeight: 1.3 }}>{issue.summary}</div>
                     <div style={{ color: 'var(--text-secondary)', display: 'flex', justifyContent: 'space-between' }}>
                       <span>👤{issue.assignee.charAt(0)}</span><span>📅{issue.dueDate}</span>

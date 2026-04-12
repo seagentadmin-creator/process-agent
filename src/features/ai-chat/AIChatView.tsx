@@ -1,3 +1,4 @@
+import { openJiraIssue } from '../../shared/constants/jira-link';
 import React, { useState, useRef, useEffect } from 'react';
 import { EmptyState } from '../../shared/components';
 import { useAIEnabled } from '../../shared/hooks';

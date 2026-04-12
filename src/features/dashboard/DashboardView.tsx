@@ -1,3 +1,4 @@
+import { openJiraIssue } from '../../shared/constants/jira-link';
 import React, { useState } from 'react';
 import { Card, StatusBadge, EmptyState, Modal } from '../../shared/components';
 
@@ -61,7 +62,7 @@ export const DashboardView: React.FC<Props> = ({ type }) => {
 
       <Section title="🔴 긴급 과제">
         {delay.length > 0 ? delay.map(t => (
-          <Card key={t.key}><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><div><div style={{ fontWeight: 600, fontSize: 12 }}>{t.key} {t.summary}</div><div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>📅 {t.dueDate} · {Math.abs(t.delay)}일 지연</div></div><StatusBadge status={t.status} /></div></Card>
+          <Card key={t.key}><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><div><div style={{ fontWeight: 600, fontSize: 12 }}><span onClick={(e: any) => { e.stopPropagation(); openJiraIssue(t.key); }} style={{ color: "var(--accent)", cursor: "pointer", textDecoration: "underline" }}>{t.key}</span> {t.summary}</div><div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>📅 {t.dueDate} · {Math.abs(t.delay)}일 지연</div></div><StatusBadge status={t.status} /></div></Card>
         )) : <EmptyState icon="🎉" title="긴급 과제 없음" description="모든 과제가 기한 내에 있습니다" />}
       </Section>
 
@@ -74,7 +75,7 @@ export const DashboardView: React.FC<Props> = ({ type }) => {
         <div style={{ fontSize: 12 }}>
           {detailModal?.items.map(t => (
             <div key={t.key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid var(--bg-tertiary)' }}>
-              <div><span style={{ fontWeight: 600 }}>{t.key}</span> {t.summary}</div>
+              <div><span onClick={() => openJiraIssue(t.key)} style={{ fontWeight: 600, color: "var(--accent)", cursor: "pointer", textDecoration: "underline" }}>{t.key}</span> {t.summary}</div>
               <StatusBadge status={t.status} />
             </div>
           ))}

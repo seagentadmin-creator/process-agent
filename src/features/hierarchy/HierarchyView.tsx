@@ -1,3 +1,4 @@
+import { openJiraIssue } from '../../shared/constants/jira-link';
 import React, { useState, useCallback } from 'react';
 import { SplitPane, SearchInput, StatusBadge, EmptyState, Accordion } from '../../shared/components';
 
@@ -85,7 +86,7 @@ export const HierarchyView: React.FC<{ type: 'slm' | 'general'; viewMode?: 'tree
             <div key={node.key} onClick={() => setSelected(node.key)}
               style={{ display: 'flex', alignItems: 'center', padding: '4px 8px', paddingLeft: 8 + depth * 16, cursor: 'pointer', background: selected === node.key ? 'var(--accent)08' : 'transparent', borderLeft: selected === node.key ? '3px solid var(--accent)' : '3px solid transparent', fontSize: 12 }}>
               {hasChildren ? <span onClick={e => { e.stopPropagation(); toggle(node.key); }} style={{ width: 16, cursor: 'pointer', color: 'var(--text-secondary)' }}>{isExpanded ? '▼' : '▶'}</span> : <span style={{ width: 16 }} />}
-              <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{node.key}: {node.summary}</span>
+              <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}><span onClick={(e: any) => { e.stopPropagation(); openJiraIssue(node.key); }} style={{ color: "var(--accent)", cursor: "pointer", textDecoration: "underline" }}>{node.key}</span>: {node.summary}</span>
               {node.status && <StatusBadge status={node.status} />}
               <button onClick={e => { e.stopPropagation(); alert(`${node.key} 하위에 Issue 생성`); }} style={{ marginLeft: 4, background: 'none', border: 'none', cursor: 'pointer', fontSize: 12 }} title="하위 Issue 생성">➕</button>
             </div>
@@ -100,7 +101,7 @@ export const HierarchyView: React.FC<{ type: 'slm' | 'general'; viewMode?: 'tree
             <div key={node.key} onClick={() => setSelected(node.key)}
               style={{ display: 'flex', alignItems: 'center', padding: '4px 8px', borderBottom: '1px solid var(--bg-tertiary)', cursor: 'pointer', background: selected === node.key ? 'var(--accent)08' : 'transparent' }}>
               <span style={{ width: 28, color: 'var(--text-secondary)' }}>{i + 1}</span>
-              <span style={{ width: 80, fontSize: 10 }}>{node.key}</span>
+              <span style={{ width: 80, fontSize: 10 }}><span onClick={(e: any) => { e.stopPropagation(); openJiraIssue(node.key); }} style={{ color: "var(--accent)", cursor: "pointer", textDecoration: "underline" }}>{node.key}</span></span>
               <span style={{ flex: 1, paddingLeft: depth * 12 }}>
                 {node.children.length > 0 && <span onClick={e => { e.stopPropagation(); toggle(node.key); }} style={{ cursor: 'pointer', marginRight: 4 }}>{expanded.has(node.key) ? '▼' : '▶'}</span>}
                 {node.summary}
@@ -116,7 +117,7 @@ export const HierarchyView: React.FC<{ type: 'slm' | 'general'; viewMode?: 'tree
 
   const preview = selectedNode ? (
     <div style={{ padding: 12 }}>
-      <div style={{ fontWeight: 700, marginBottom: 4 }}>{selectedNode.key} {selectedNode.summary}</div>
+      <div style={{ fontWeight: 700, marginBottom: 4 }}><span onClick={() => openJiraIssue(selectedNode.key)} style={{ color: "var(--accent)", cursor: "pointer", textDecoration: "underline" }}>{selectedNode.key}</span> {selectedNode.summary}</div>
       {selectedNode.status && <div style={{ marginBottom: 8 }}><StatusBadge status={selectedNode.status} /></div>}
       <Accordion items={[
         ...(type === 'slm' ? [{ id: 'guide', icon: '📖', label: '가이드', content: <div style={{ fontSize: 11 }}>가이드 내용</div> }] : []),

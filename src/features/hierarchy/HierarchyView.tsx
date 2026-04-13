@@ -1,26 +1,14 @@
 import { openJiraIssue } from '../../shared/constants/jira-link';
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { SplitPane, SearchInput, StatusBadge, EmptyState, Accordion } from '../../shared/components';
 import { IssueCreateView } from '../common/CommonViews';
+import { dataService } from '../../core/data-service';
 
 interface TreeNode { key: string; summary: string; status: string; level: string; children: TreeNode[]; }
 
-const MOCK_TREE: TreeNode[] = [
-  { key: 'L4-001', summary: '2026 SW 생명주기 관리', status: '', level: 'L4', children: [
-    { key: 'REQ-001', summary: '요구사항 정의서 작성', status: '구현', level: 'L5', children: [
-      { key: 'REQ-001-A', summary: '기능 요구사항 상세', status: '구현', level: 'L6', children: [] },
-      { key: 'REQ-001-B', summary: '비기능 요구사항 상세', status: '완료', level: 'L6', children: [] },
-    ]},
-    { key: 'ANL-002', summary: '시스템 분석 보고서', status: '구현', level: 'L5', children: [
-      { key: 'ANL-002-A', summary: '현행 시스템 분석', status: '완료', level: 'L6', children: [] },
-    ]},
-    { key: 'DES-003', summary: '아키텍처 설계 검토', status: '요구사항', level: 'L5', children: [] },
-    { key: 'IMP-004', summary: '모듈 구현 - 인증', status: '구현', level: 'L5', children: [] },
-    { key: 'TST-005', summary: '통합 테스트 수행', status: '요구사항', level: 'L5', children: [] },
-  ]},
-];
-
-export const HierarchyView: React.FC<{ type: 'slm' | 'general'; viewMode?: 'tree' | 'table' | 'unified' }> = ({ type, viewMode = 'unified' }) => {
+export const HierarchyView: React.FC<{ type: 'slm' | 'general'; viewMode?: 'tree' | 'table' | 'unified'; projectKey?: string }> = ({ type, viewMode = 'unified', projectKey }) => {
+  const [treeData, setTreeData] = useState<TreeNode[]>([]);
+  const [loading, setLoading] = useState(false);
   const [keyword, setKeyword] = useState('');
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
   const [includeClosed, setIncludeClosed] = useState(false);
@@ -29,17 +17,34 @@ export const HierarchyView: React.FC<{ type: 'slm' | 'general'; viewMode?: 'tree
   const [accordionId, setAccordionId] = useState<string | null>(null);
   const [mode, setMode] = useState<'tree' | 'table'>(viewMode === 'table' ? 'table' : 'tree');
   const [createParent, setCreateParent] = useState<{ key: string; summary: string } | null>(null);
+  const [showGuide, setShowGuide] = useState(true);
 
-  const toggle = useCallback((key: string) => {
-    setExpanded(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; });
-  }, []);
+  // Jira 데이터 로드
+  useEffect(() => {
+    if (!dataService.isConnected() || !projectKey) return;
+    setLoading(true);
+    (async () => {
+      try {
+        const data = await dataService.getIssueTree(projectKey);
+        setTreeData(data);
+        if (data.length > 0) setExpanded(new Set([data[0].key]));
+      } catch {}
+      setLoading(false);
+    })();
+  }, [projectKey]);
 
-  const expandAll = () => {
-    const keys = new Set<string>();
-    const collect = (nodes: TreeNode[]) => nodes.forEach(n => { keys.add(n.key); collect(n.children); });
-    collect(MOCK_TREE);
-    setExpanded(keys);
-  };
+  if (!dataService.isConnected()) {
+    return (
+      <div style={{ padding: 12 }}>
+        <EmptyState icon="🔗" title="Jira에 연결되지 않았습니다" description="⚙️ 설정에서 Jira URL, PAT, Project Key를 입력하세요." />
+      </div>
+    );
+  }
+
+  if (loading) return <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-secondary)' }}>🔄 Structure 조회 중...</div>;
+
+  const toggle = (key: string) => setExpanded(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; });
+  const expandAll = () => { const s = new Set<string>(); const c = (ns: TreeNode[]) => ns.forEach(n => { s.add(n.key); c(n.children); }); c(treeData); setExpanded(s); };
 
   const matchesFilter = useCallback((node: TreeNode): boolean => {
     if (keyword && !node.summary.toLowerCase().includes(keyword.toLowerCase()) && !node.key.includes(keyword)) return node.children.some(matchesFilter);
@@ -52,18 +57,17 @@ export const HierarchyView: React.FC<{ type: 'slm' | 'general'; viewMode?: 'tree
   const flatten = (nodes: TreeNode[], depth: number) => {
     nodes.forEach(n => { if (matchesFilter(n)) { flatNodes.push({ node: n, depth }); if (expanded.has(n.key)) flatten(n.children, depth + 1); } });
   };
-  flatten(MOCK_TREE, 0);
+  flatten(treeData, 0);
 
   const selectedNode = flatNodes.find(f => f.node.key === selected)?.node;
 
-  // Issue Type별 Status 통합
   const ALL_STATUSES = type === 'slm'
     ? ['요구사항', '분석', '설계', '구현', '테스트', '검증', '완료']
     : ['To Do', 'In Progress', 'Review', 'Done', 'Open', 'Fixed', 'Verified', 'Draft', 'Approved'];
-  const [showGuide, setShowGuide] = useState(true);
 
   const toolbar = (
     <div style={{ padding: 8, borderBottom: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <div style={{ padding: '4px 8px', background: '#d1e7dd', borderRadius: 'var(--radius)', fontSize: 10, color: '#0f5132' }}>✅ {projectKey} Structure ({flatNodes.length}건)</div>
       <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
         <div style={{ flex: 1 }}><SearchInput value={keyword} onChange={setKeyword} placeholder="검색..." /></div>
         <button onClick={() => setMode(mode === 'tree' ? 'table' : 'tree')} style={{ padding: '4px 8px', border: '1px solid var(--border)', borderRadius: 4, background: 'var(--bg-secondary)', cursor: 'pointer', fontSize: 10 }}>{mode === 'tree' ? '📐 Table' : '🌳 Tree'}</button>
@@ -91,9 +95,9 @@ export const HierarchyView: React.FC<{ type: 'slm' | 'general'; viewMode?: 'tree
       </div>
       {statusFilter.length > 0 && (
         <div style={{ fontSize: 10, color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: 4 }}>
-          <span>🔍 필터 적용중:</span>
+          <span>🔍 필터:</span>
           {statusFilter.map(s => <span key={s} style={{ padding: '1px 6px', background: 'var(--accent)', color: '#fff', borderRadius: 10, fontSize: 9 }}>{s}</span>)}
-          <button onClick={() => setStatusFilter([])} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: 10 }}>전체 해제</button>
+          <button onClick={() => setStatusFilter([])} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: 10 }}>해제</button>
         </div>
       )}
     </div>
@@ -102,15 +106,17 @@ export const HierarchyView: React.FC<{ type: 'slm' | 'general'; viewMode?: 'tree
   const treeView = (
     <div>
       {toolbar}
-      {mode === 'tree' ? (
+      {flatNodes.length === 0 ? (
+        <EmptyState icon="📋" title="과제가 없습니다" description="필터 조건을 확인하거나 Jira에서 과제를 생성하세요" />
+      ) : mode === 'tree' ? (
         <div>{flatNodes.map(({ node, depth }) => {
           const hasChildren = node.children.length > 0;
           const isExpanded = expanded.has(node.key);
           return (
-            <div key={node.key} onClick={() => setSelected(node.key)}
+            <div key={node.key} onClick={() => { setSelected(node.key); setCreateParent(null); }}
               style={{ display: 'flex', alignItems: 'center', padding: '4px 8px', paddingLeft: 8 + depth * 16, cursor: 'pointer', background: selected === node.key ? 'var(--accent)08' : 'transparent', borderLeft: selected === node.key ? '3px solid var(--accent)' : '3px solid transparent', fontSize: 12 }}>
               {hasChildren ? <span onClick={e => { e.stopPropagation(); toggle(node.key); }} style={{ width: 16, cursor: 'pointer', color: 'var(--text-secondary)' }}>{isExpanded ? '▼' : '▶'}</span> : <span style={{ width: 16 }} />}
-              <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}><span onClick={(e: any) => { e.stopPropagation(); openJiraIssue(node.key); }} style={{ color: "var(--accent)", cursor: "pointer", textDecoration: "underline" }}>{node.key}</span>: {node.summary}</span>
+              <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}><span onClick={(e: any) => { e.stopPropagation(); openJiraIssue(node.key); }} style={{ color: 'var(--accent)', cursor: 'pointer', textDecoration: 'underline' }}>{node.key}</span>: {node.summary}</span>
               {node.status && <StatusBadge status={node.status} />}
               <button onClick={e => { e.stopPropagation(); setCreateParent({ key: node.key, summary: node.summary }); setSelected(null); }} style={{ marginLeft: 4, background: 'none', border: 'none', cursor: 'pointer', fontSize: 12 }} title="하위 Issue 생성">➕</button>
             </div>
@@ -122,10 +128,10 @@ export const HierarchyView: React.FC<{ type: 'slm' | 'general'; viewMode?: 'tree
             <span style={{ width: 28 }}>#</span><span style={{ width: 80 }}>Key</span><span style={{ flex: 1 }}>Summary</span><span style={{ width: 80, textAlign: 'center' }}>Status</span><span style={{ width: 24 }}></span>
           </div>
           {flatNodes.map(({ node, depth }, i) => (
-            <div key={node.key} onClick={() => setSelected(node.key)}
+            <div key={node.key} onClick={() => { setSelected(node.key); setCreateParent(null); }}
               style={{ display: 'flex', alignItems: 'center', padding: '4px 8px', borderBottom: '1px solid var(--bg-tertiary)', cursor: 'pointer', background: selected === node.key ? 'var(--accent)08' : 'transparent' }}>
               <span style={{ width: 28, color: 'var(--text-secondary)' }}>{i + 1}</span>
-              <span style={{ width: 80, fontSize: 10 }}><span onClick={(e: any) => { e.stopPropagation(); openJiraIssue(node.key); }} style={{ color: "var(--accent)", cursor: "pointer", textDecoration: "underline" }}>{node.key}</span></span>
+              <span style={{ width: 80, fontSize: 10 }}><span onClick={(e: any) => { e.stopPropagation(); openJiraIssue(node.key); }} style={{ color: 'var(--accent)', cursor: 'pointer', textDecoration: 'underline' }}>{node.key}</span></span>
               <span style={{ flex: 1, paddingLeft: depth * 12 }}>
                 {node.children.length > 0 && <span onClick={e => { e.stopPropagation(); toggle(node.key); }} style={{ cursor: 'pointer', marginRight: 4 }}>{expanded.has(node.key) ? '▼' : '▶'}</span>}
                 {node.summary}
@@ -143,11 +149,11 @@ export const HierarchyView: React.FC<{ type: 'slm' | 'general'; viewMode?: 'tree
     <IssueCreateView parentKey={createParent.key} parentSummary={createParent.summary} onClose={() => setCreateParent(null)} type={type} />
   ) : selectedNode ? (
     <div style={{ padding: 12 }}>
-      <div style={{ fontWeight: 700, marginBottom: 4 }}><span onClick={() => openJiraIssue(selectedNode.key)} style={{ color: "var(--accent)", cursor: "pointer", textDecoration: "underline" }}>{selectedNode.key}</span> {selectedNode.summary}</div>
+      <div style={{ fontWeight: 700, marginBottom: 4 }}><span onClick={() => openJiraIssue(selectedNode.key)} style={{ color: 'var(--accent)', cursor: 'pointer', textDecoration: 'underline' }}>{selectedNode.key}</span> {selectedNode.summary}</div>
       {selectedNode.status && <div style={{ marginBottom: 8 }}><StatusBadge status={selectedNode.status} /></div>}
       <Accordion items={[
-        ...(type === 'slm' ? [{ id: 'guide', icon: '📖', label: '가이드', content: <div style={{ fontSize: 11 }}>가이드 내용</div> }] : []),
-        { id: 'status', icon: '🔄', label: 'Status', content: <div style={{ fontSize: 11 }}>Status 전이</div> },
+        ...(type === 'slm' ? [{ id: 'guide', icon: '📖', label: '가이드', content: <div style={{ fontSize: 11 }}>가이드 — Confluence 연동 후 자동 로드</div> }] : []),
+        { id: 'status', icon: '🔄', label: 'Status', content: <div style={{ fontSize: 11 }}>Status 전이 — Jira API 연동</div> },
         { id: 'ref', icon: '📋', label: '참조', content: <div style={{ fontSize: 11 }}>이전 과제 참조</div> },
         { id: 'ai', icon: '💬', label: 'AI', content: <div style={{ fontSize: 11 }}>AI 질문</div> },
       ]} activeId={accordionId} onChange={setAccordionId} />

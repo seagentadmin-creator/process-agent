@@ -49,7 +49,7 @@
 | F-15 | Global Search (Ctrl+F) | ✅ | 모달, ESC 닫기 |
 | F-16 | Shortcut Settings | ✅ | 목록 모달 |
 | F-17 | Issue Creation (Structure) | ✅ | [+]→3단계 Wizard, SLM(L4~L7)/일반(SW-Task+Component 등 7종), 기본값 자동 |
-| F-18 | Reference/Reuse | ✅ | 유사과제, 필드 선택, 클립보드 복사 |
+| F-18 | Reference/Reuse | ✅ | Jira API 유사과제 검색, 필드 선택, 클립보드 복사 |
 
 ---
 
@@ -593,4 +593,188 @@ background/service-worker.ts    ← Polling + 버전 체크 (기존)
 Phase 2:
   → 클립보드가 아닌 현재 과제 필드에 직접 주입
   → Jira API PUT /rest/api/2/issue/{key} 호출
+```
+
+---
+
+## 12. 데이터 파이프라인
+
+### 연결 흐름
+
+```
+⚙️ 설정에서 입력:
+  Jira URL:       https://jira.company.com
+  Confluence URL: https://confluence.company.com
+  PAT:            personal-access-token
+                    ↓
+  [💾 저장] 클릭
+                    ↓
+  chrome.storage.local에 저장:
+    pa-jira-url, pa-confluence-url, pa-pat
+                    ↓
+  dataService.saveConfig() → init()
+    → JiraClient 생성 (baseUrl + PAT 인증)
+    → ConfluenceClient 생성
+                    ↓
+  testConnection() → /rest/api/2/myself 호출
+    → 성공: "연결 성공 (홍길동)" 토스트
+    → 실패: "연결 실패 — URL/PAT 확인" 에러
+```
+
+### 데이터 조회
+
+```
+Feature View 렌더링 시:
+  dataService.isConnected() 체크
+                    ↓
+  ┌─ true ──────────────────────────────┐
+  │ dataService.getSLMIssues(projectKey) │
+  │ → JiraClient.searchIssues(JQL)      │
+  │ → CacheManager (10분 TTL)           │
+  │ → IssueData[] 반환                  │
+  │ → "✅ Jira 실시간 데이터" 배너       │
+  └─────────────────────────────────────┘
+                    ↓
+  ┌─ false ─────────────────────────────┐
+  │ Mock 데이터 표시                     │
+  │ → "⚠️ 연결 안내" 배너             │
+  │ → "⚙️ 설정에서 연결하세요" 안내      │
+  └─────────────────────────────────────┘
+```
+
+### Polling (Service Worker)
+
+```
+chrome.alarms 'pa-polling' (10분 주기)
+  → pa-jira-url + pa-pat 확인
+  → CACHE_REFRESH 메시지 → UI 갱신
+  → 캐시 만료 시 자동 재조회
+```
+
+### 파일 구성
+
+```
+core/data-service.ts    ← 연결 관리 + 데이터 조회 (싱글톤)
+shared/hooks/use-data.ts ← React Hook (useConnection, useIssues)
+sidepanel/App.tsx       ← Settings 저장/로드 + 연결 테스트
+background/service-worker.ts ← Polling + 설정 변경 감지
+features/*/View.tsx     ← isConnected() → 실시간 or Mock
+```
+
+### JQL 쿼리
+
+```
+SLM 과제:
+  project = {SLM_PROJECT} AND issuetype in (SW-Task, Requirement, Defect, Task, Sub-Task, Story)
+  ORDER BY duedate ASC
+
+일반 과제:
+  project = {GEN_PROJECT} [AND sprint = {sprintId}]
+  ORDER BY duedate ASC
+```
+
+---
+
+## 13. Settings 화면 구조
+
+```
+⚙️ 설정 모달
+
+┌─── 🔗 시스템 연결 ──────────────────────────┐
+│ Jira URL:       [https://jira.company.com ]  │
+│ Confluence URL: [https://conf.company.com ]  │
+│ PAT:            [••••••••••••••••          ]  │
+└──────────────────────────────────────────────┘
+
+┌─── 📋 프로젝트 설정 ────────────────────────┐
+│ SLM Project Key:  [SLMPROJ]                  │
+│  → SLM 탭에서 조회할 Jira 프로젝트            │
+│                                              │
+│ 일반 Project Key: [GENPROJ]                  │
+│  → 일반 탭에서 조회할 Jira 프로젝트            │
+│                                              │
+│ SW-Task Component: [Common]                  │
+└──────────────────────────────────────────────┘
+
+┌─── 🎨 화면 ─────────────────────────────────┐
+│ 테마: [시스템 ▼]                              │
+└──────────────────────────────────────────────┘
+
+✅ 연결됨: 홍길동                    ← 연결 상태 표시
+
+[💾 저장 및 연결 테스트] [🔄 온보딩] [⌨️ 단축키]
+```
+
+### 저장 시 동작
+
+```
+[💾 저장] 클릭
+  ↓
+chrome.storage.local에 저장:
+  pa-jira-url, pa-confluence-url, pa-pat
+  pa-slm-project, pa-gen-project
+  pa-default-component
+  ↓
+dataService.saveConfig() → JiraClient 초기화
+  ↓
+testConnection() → Jira /rest/api/2/myself 호출
+  ↓
+성공: "연결 성공 (홍길동)" + Header ● 초록
+실패: "연결 실패" + Header ● 빨강
+  ↓
+Feature View 자동 갱신 (projectKey prop 반영)
+```
+
+### 미연결 시 Feature View
+
+```
+모든 Feature View (Dashboard, TaskList, Structure):
+  미연결 → "🔗 Jira에 연결되지 않았습니다" EmptyState 표시
+         → 연결 방법 안내 (5단계)
+         → Mock 데이터 없음
+```
+
+---
+
+## 14. 설정 영속성 (Storage)
+
+### 문제
+Extension 파일을 새 폴더에서 로드하면 Extension ID가 변경되고 chrome.storage.local이 초기화됨.
+
+### 해결
+
+```
+저장: chrome.storage.sync (우선) + chrome.storage.local (백업)
+로드: sync 우선 → local fallback
+
+sync: Chrome 계정에 연동 → Extension ID 변경에도 유지
+local: 같은 Extension ID 내에서 빠른 접근
+
+core/storage-helper.ts:
+  saveSettings(data)     → sync + local 동시 저장
+  loadSettings(keys)     → sync 우선, local fallback
+  exportSettings()       → JSON 파일 다운로드
+  importSettings(json)   → JSON 파일에서 복원
+```
+
+### 설정 내보내기/가져오기
+
+```
+⚙️ 설정 모달 하단:
+  [📤 설정 내보내기] → pa-settings.json 다운로드
+  [📥 설정 가져오기] → JSON 파일 선택 → 복원 → 새로고침
+
+용도:
+  - Extension 재설치 시 백업/복원
+  - 팀원에게 설정 공유
+  - 다른 PC로 설정 이전
+```
+
+### 영속성 보장 순서
+
+```
+1차: chrome.storage.sync (Chrome 계정 연동 시 유지)
+2차: chrome.storage.local (같은 Extension ID 내 유지)
+3차: pa-settings.json 내보내기/가져오기 (수동 백업)
+4차: Confluence PA-CONFIG 페이지 (Phase 2, 서버 백업)
 ```

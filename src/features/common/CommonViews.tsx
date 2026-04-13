@@ -1,66 +1,7 @@
 import { openJiraIssue } from '../../shared/constants/jira-link';
 import React, { useState } from 'react';
 import { SplitPane, SearchInput, StatusBadge, EmptyState, Accordion, Modal } from '../../shared/components';
-
-// === Structure Table View ===
-const MOCK_STRUCTURE = [
-  { row: 1, key: 'L4-001', summary: '2026년 정기점검', status: '', depth: 0, canCreate: false },
-  { row: 2, key: 'L5-201', summary: '전기안전점검', status: 'In Progress', depth: 1, canCreate: true },
-  { row: 3, key: 'L6-301', summary: '절연저항상세', status: 'In Progress', depth: 2, canCreate: true },
-  { row: 4, key: 'L7-401', summary: '항목A', status: 'In Progress', depth: 3, canCreate: false },
-  { row: 5, key: 'L7-402', summary: '항목B', status: 'Done', depth: 3, canCreate: false },
-  { row: 6, key: 'L6-302', summary: '접지상태상세', status: 'To Do', depth: 2, canCreate: true },
-  { row: 7, key: 'L5-202', summary: '소방설비점검', status: 'Done', depth: 1, canCreate: true },
-  { row: 8, key: 'L5-203', summary: '가스누출점검', status: 'To Do', depth: 1, canCreate: true },
-];
-
-export const StructureView: React.FC<{ type: 'slm' | 'general' }> = ({ type }) => {
-  const [selected, setSelected] = useState<string | null>(null);
-  const [keyword, setKeyword] = useState('');
-  const [accordionId, setAccordionId] = useState<string | null>(null);
-
-  const filtered = MOCK_STRUCTURE.filter(r => !keyword || r.summary.includes(keyword) || r.key.includes(keyword));
-  const selectedRow = MOCK_STRUCTURE.find(r => r.key === selected);
-
-  const table = (
-    <div>
-      <div style={{ padding: 8, borderBottom: '1px solid var(--border)' }}>
-        <SearchInput value={keyword} onChange={setKeyword} placeholder="키워드 검색..." />
-      </div>
-      <div style={{ fontSize: 11 }}>
-        <div style={{ display: 'flex', padding: '4px 8px', background: 'var(--bg-tertiary)', fontWeight: 600, borderBottom: '1px solid var(--border)' }}>
-          <span style={{ width: 28 }}>#</span><span style={{ width: 70 }}>Key</span><span style={{ flex: 1 }}>Summary</span><span style={{ width: 70, textAlign: 'center' }}>Status</span><span style={{ width: 28 }}></span>
-        </div>
-        {filtered.map(row => (
-          <div key={row.key} onClick={() => setSelected(row.key)}
-            style={{ display: 'flex', alignItems: 'center', padding: '4px 8px', borderBottom: '1px solid var(--bg-tertiary)', cursor: 'pointer', background: selected === row.key ? 'var(--accent)08' : 'transparent' }}>
-            <span style={{ width: 28, color: 'var(--text-secondary)' }}>{row.row}</span>
-            <span style={{ width: 70, fontSize: 10 }}><span onClick={(e: any) => { e.stopPropagation(); openJiraIssue(row.key); }} style={{ color: "var(--accent)", cursor: "pointer", textDecoration: "underline" }}>{row.key}</span></span>
-            <span style={{ flex: 1, paddingLeft: row.depth * 12 }}>{row.summary}</span>
-            <span style={{ width: 70, textAlign: 'center' }}>{row.status && <StatusBadge status={row.status} />}</span>
-            <span style={{ width: 28 }}>{row.canCreate && <button style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12 }}>➕</button>}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-
-  const preview = selectedRow ? (
-    <div style={{ padding: 12 }}>
-      <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 4 }}>{selectedRow.key} {selectedRow.summary}</div>
-      {selectedRow.status && <div style={{ marginBottom: 8 }}><StatusBadge status={selectedRow.status} /></div>}
-      <Accordion items={[
-        ...(type === 'slm' ? [{ id: 'guide', icon: '📖', label: '가이드', content: <div style={{ fontSize: 11 }}>가이드</div> }] : []),
-        { id: 'status', icon: '🔄', label: 'Status', content: <div style={{ fontSize: 11 }}>Status 전이</div> },
-        { id: 'ref', icon: '📋', label: '참조', content: <div style={{ fontSize: 11 }}>참조</div> },
-      ]} activeId={accordionId} onChange={setAccordionId} />
-    </div>
-  ) : (
-    <EmptyState icon="📐" title="항목을 선택하세요" description="Structure 테이블에서 행을 클릭하세요" />
-  );
-
-  return <SplitPane top={table} bottom={preview} storageKey="pa-structure-ratio" />;
-};
+import { dataService } from '../../core/data-service';
 
 // === Global Search Modal ===
 export const GlobalSearchModal: React.FC<{ open: boolean; onClose: () => void }> = ({ open, onClose }) => {
@@ -114,6 +55,9 @@ export const IssueCreateView: React.FC<{ parentKey: string; parentSummary: strin
   const [dueDate, setDueDate] = useState(new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0]);
   const [assignee, setAssignee] = useState('홍길동');
   const [created, setCreated] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [createdKey, setCreatedKey] = useState('');
+  const [createError, setCreateError] = useState('');
 
   const showComponent = issueType === 'SW-Task';
   const statuses = STATUS_MAP[issueType] || ['To Do', 'In Progress', 'Done'];
@@ -124,10 +68,10 @@ export const IssueCreateView: React.FC<{ parentKey: string; parentSummary: strin
       <div style={{ padding: 16, textAlign: 'center' }}>
         <div style={{ fontSize: 32, marginBottom: 8 }}>✅</div>
         <div style={{ fontWeight: 700, marginBottom: 4 }}>Issue 생성 완료</div>
-        <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12 }}>{issueType}-NEW {summary}</div>
+        <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12 }}>{createdKey} {summary}</div>
         <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
-          <button onClick={() => openJiraIssue('NEW-001')} style={btnStyle}>🔗 Jira에서 열기</button>
-          <button onClick={() => { setCreated(false); setStep(1); setSummary(''); setDescription(''); }} style={{ ...btnStyle, background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}>➕ 추가 생성</button>
+          <button onClick={() => openJiraIssue(createdKey)} style={btnStyle}>🔗 Jira에서 열기</button>
+          <button onClick={() => { setCreated(false); setStep(1); setSummary(''); setDescription(''); setCreatedKey(''); }} style={{ ...btnStyle, background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}>➕ 추가 생성</button>
           <button onClick={onClose} style={{ ...btnStyle, background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}>← 목록</button>
         </div>
       </div>
@@ -188,8 +132,26 @@ export const IssueCreateView: React.FC<{ parentKey: string; parentSummary: strin
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
             <button onClick={() => setStep(2)} style={{ ...btnStyle, background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}>← 이전</button>
-            <button onClick={() => setCreated(true)} style={btnStyle}>✅ 생성</button>
+            <button onClick={async () => {
+              setCreating(true); setCreateError('');
+              const fields: Record<string, any> = {
+                project: { key: parentKey.split('-')[0] || parentKey },
+                issuetype: { name: issueType },
+                summary,
+                description,
+                parent: { key: parentKey },
+              };
+              if (dueDate) fields.duedate = dueDate;
+              if (assignee) fields.assignee = { name: assignee };
+              if (showComponent && component) fields.components = [{ name: component }];
+              const result = await dataService.createIssue(fields);
+              setCreating(false);
+              if (result.success && result.key) { setCreatedKey(result.key); setCreated(true); }
+              else { setCreateError(result.error || '생성 실패'); }
+            }} disabled={creating} style={{ ...btnStyle, opacity: creating ? 0.5 : 1 }}>{creating ? '⏳ 생성 중...' : '✅ 생성'}</button>
           </div>
+          {createError && <div style={{ marginTop: 8, padding: '6px 10px', background: '#f8d7da', borderRadius: 'var(--radius)', fontSize: 11, color: '#842029' }}>❌ {createError}</div>}
+          {!dataService.isConnected() && <div style={{ marginTop: 8, padding: '6px 10px', background: '#fff3cd', borderRadius: 'var(--radius)', fontSize: 11, color: '#856404' }}>⚠️ Jira 미연결 — ⚙️ 설정에서 연결하세요</div>}
         </div>
       )}
     </div>

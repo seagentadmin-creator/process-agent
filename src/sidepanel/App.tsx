@@ -1,4 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
+import { dataService } from '../core/data-service';
+import { saveSettings as storageSave, loadSettings as storageLoad, exportSettings, importSettings } from '../core/storage-helper';
 import { Header, Tabs, Modal, Toast } from '../shared/components';
 import { useTheme, useAIEnabled, useKeyboardShortcut } from '../shared/hooks';
 import { DashboardView } from '../features/dashboard/DashboardView';
@@ -29,40 +31,6 @@ const GEN_SUBS = [
 
 const ADMIN_PASSWORD = 'P@ssw0rd##';
 
-// Mock 알림 데이터
-const ALERT_DATA = [
-  { id: 1, type: 'delay' as const, key: 'REQ-001', msg: '9일 지연', time: '14:30' },
-  { id: 2, type: 'warn' as const, key: 'DES-003', msg: '5일 후 마감', time: '10:00' },
-  { id: 3, type: 'info' as const, key: '', msg: 'v1.0.1 업데이트 가능', time: '09:00' },
-];
-
-// Mock 메타데이터
-const META_DATA = [
-  { code: 'A-001', issueType: 'Story', title: '요구사항 분석', guide: 'O', checklist: 'O' },
-  { code: 'A-002', issueType: 'Task', title: '설계 검토', guide: 'O', checklist: 'X' },
-  { code: 'B-001', issueType: 'Bug', title: '버그 수정', guide: 'X', checklist: 'O' },
-];
-
-// Mock 버전 이력
-const VERSION_HISTORY = [
-  { ver: 'v2.4-draft', date: '2026-04-12', changes: 2, status: 'draft' },
-  { ver: 'v2.3', date: '2026-04-10', changes: 3, status: 'current' },
-  { ver: 'v2.2', date: '2026-04-05', changes: 1, status: 'previous' },
-  { ver: 'v2.1', date: '2026-04-01', changes: 5, status: 'previous' },
-];
-
-// KPI 지표 계산
-const KPI_METRICS = {
-  weeklyDone: 5, weeklyTarget: 7,
-  monthlyRate: 82, avgDays: 8.5, delayRate: 15,
-  processRate: 68,
-  stageRates: [
-    { name: '요구사항', rate: 90 }, { name: '설계', rate: 70 },
-    { name: '구현', rate: 60 }, { name: '테스트', rate: 30 },
-  ],
-  guideViews: 23, aiQuestions: 12, reuseCount: 8, vocCount: 2,
-};
-
 const ONBOARDING = [
   { title: 'Process Agent에 오신 것을 환영합니다', desc: 'Jira/Confluence 과제를 효율적으로 관리하는 Extension입니다.' },
   { title: '📋 SLM 탭', desc: 'SW 생명주기 과제를 관리합니다. 대시보드에서 현황을 파악하세요.' },
@@ -86,6 +54,18 @@ export const App: React.FC = () => {
   const [confluenceUrl, setConfluenceUrl] = useState('');
   const [pat, setPat] = useState('');
   const [defaultComponent, setDefaultComponent] = useState('Common');
+  const [slmProject, setSlmProject] = useState('SLM');
+  const [genProject, setGenProject] = useState('GEN');
+
+  // Admin Confluence Space Key
+  const [confluenceSpace, setConfluenceSpace] = useState('SLM-CONFIG');
+
+  // Dynamic data (loaded from Jira/Confluence)
+  const [alertData, setAlertData] = useState<any[]>([]);
+  const [metaData, setMetaData] = useState<any[]>([]);
+  const [versionManifest, setVersionManifest] = useState<any>(null);
+  const [draftVersion, setDraftVersion] = useState<any>(null);
+  const [kpiMetrics, setKpiMetrics] = useState<any>(null);
 
   const isPopout = typeof window !== 'undefined' && window.location?.search?.includes('popout=true');
   const showToast = useCallback((msg: string, type: 'success' | 'error' | 'info' = 'success') => setToast({ message: msg, type }), []);
@@ -106,12 +86,89 @@ export const App: React.FC = () => {
 
   useKeyboardShortcut('f', 'ctrl', () => setModal('search'));
 
-  // 온보딩
+  // 연결 상태
+  const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'checking'>('checking');
+  const [connectedUser, setConnectedUser] = useState('');
+  const [testResult, setTestResult] = useState<{ jira: boolean; confluence: boolean; user: string; tested: boolean; testing: boolean }>({ jira: false, confluence: false, user: '', tested: false, testing: false });
+
+  // Settings 로드
   useEffect(() => {
-    try { chrome.storage.local.get('pa-onboarding-done').then((r: any) => { if (!r['pa-onboarding-done']) setModal('onboarding'); }); } catch {}
+    (async () => {
+      const config = await dataService.loadConfig();
+      if (config) {
+        setJiraUrl(config.jiraUrl);
+        setConfluenceUrl(config.confluenceUrl);
+        setPat(config.pat);
+        dataService.init();
+        const test = await dataService.testConnection();
+        setConnectionStatus(test.jira ? 'connected' : 'disconnected');
+        setConnectedUser(test.user || '');
+      } else {
+        setConnectionStatus('disconnected');
+      }
+      try {
+        const stored = await storageLoad(['pa-default-component', 'pa-slm-project', 'pa-gen-project', 'pa-confluence-space']);
+        if (stored['pa-default-component']) setDefaultComponent(stored['pa-default-component'] as string);
+        if (stored['pa-slm-project']) setSlmProject(stored['pa-slm-project'] as string);
+        if (stored['pa-gen-project']) setGenProject(stored['pa-gen-project'] as string);
+        if (stored['pa-confluence-space']) setConfluenceSpace(stored['pa-confluence-space'] as string);
+      } catch {}
+      // 연결 성공 시 실시간 데이터 로드
+      if (dataService.isConnected()) {
+        loadLiveData();
+      }
+    })();
   }, []);
 
-  const finishOnboarding = () => { setModal(null); setOnboardingStep(0); try { chrome.storage.local.set({ 'pa-onboarding-done': true }); } catch {} };
+  // Settings 저장
+  // 연결 테스트 (저장 없이 현재 입력값으로 테스트)
+  const runConnectionTest = async () => {
+    setTestResult(prev => ({ ...prev, testing: true, tested: false }));
+    // 임시로 config 적용
+    await dataService.saveConfig({ jiraUrl, confluenceUrl, pat });
+    const result = await dataService.testConnection();
+    setTestResult({ jira: result.jira, confluence: result.confluence, user: result.user || '', tested: true, testing: false });
+    setConnectionStatus(result.jira ? 'connected' : 'disconnected');
+    setConnectedUser(result.user || '');
+    if (result.jira) loadLiveData();
+  };
+
+  // 실시간 데이터 로드
+  const loadLiveData = async () => {
+    try {
+      const pk = slmProject || genProject;
+      // 알림
+      const alerts = await dataService.getAlerts(pk);
+      setAlertData(alerts);
+      // KPI
+      const kpi = await dataService.getKPIMetrics(pk);
+      if (kpi) setKpiMetrics(kpi);
+      // Admin 데이터 (Confluence 연결 시)
+      if (confluenceSpace) {
+        const meta = await dataService.getMetadata(confluenceSpace);
+        if (meta.length > 0) setMetaData(meta);
+        const manifest = await dataService.getVersionManifest(confluenceSpace);
+        if (manifest) setVersionManifest(manifest);
+        const draft = await dataService.getDraft(confluenceSpace);
+        if (draft) setDraftVersion(draft);
+      }
+    } catch {}
+  };
+
+  const saveSettings = async () => {
+    await dataService.saveConfig({ jiraUrl, confluenceUrl, pat });
+    await storageSave({ 'pa-default-component': defaultComponent, 'pa-slm-project': slmProject, 'pa-gen-project': genProject, 'pa-confluence-space': confluenceSpace });
+    showToast('설정 저장 완료');
+    // 저장 후 자동 연결 테스트
+    await runConnectionTest();
+  };
+
+  // 온보딩
+  useEffect(() => {
+    try { storageLoad(['pa-onboarding-done']).then((r: any) => { if (!r['pa-onboarding-done']) setModal('onboarding'); }); } catch {}
+  }, []);
+
+  const finishOnboarding = () => { setModal(null); setOnboardingStep(0); storageSave({ 'pa-onboarding-done': 'true' }); };
   const handleAdminLogin = () => { if (adminPw === ADMIN_PASSWORD) { setAdminAuth(true); setAdminPw(''); } else { showToast('비밀번호가 올바르지 않습니다', 'error'); } };
 
   const subTabs = mainTab === 'slm' ? SLM_SUBS : mainTab === 'general' ? GEN_SUBS : [];
@@ -120,9 +177,9 @@ export const App: React.FC = () => {
     if (mainTab === 'voc') return <VOCView />;
     if (mainTab === 'ai') return <AIChatView />;
     switch (subTab) {
-      case 'dashboard': return <DashboardView type={viewType} />;
-      case 'tasks': case 'epics': return <TaskListView type={viewType} />;
-      case 'hierarchy': return <HierarchyView type={viewType} viewMode="unified" />;
+      case 'dashboard': return <DashboardView type={viewType} projectKey={viewType === 'slm' ? slmProject : genProject} />;
+      case 'tasks': case 'epics': return <TaskListView type={viewType} projectKey={viewType === 'slm' ? slmProject : genProject} />;
+      case 'hierarchy': return <HierarchyView type={viewType} viewMode="unified" projectKey={viewType === 'slm' ? slmProject : genProject} />;
       case 'sprint': return <SprintView />;
       default: return null;
     }
@@ -134,7 +191,7 @@ export const App: React.FC = () => {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
-      <Header onPopout={handlePopout} onRefresh={handleRefresh} onSettings={() => setModal('settings')} onAdmin={() => setModal('admin')} onKpi={() => setModal('kpi')} connectionStatus="connected" alertCount={ALERT_DATA.length} onAlert={() => setModal('alert')} isPopout={isPopout} onClosePopout={() => window.close()} />
+      <Header onPopout={handlePopout} onRefresh={handleRefresh} onSettings={() => setModal('settings')} onAdmin={() => setModal('admin')} onKpi={() => setModal('kpi')} connectionStatus={connectionStatus} alertCount={alertData.length} onAlert={() => setModal('alert')} isPopout={isPopout} onClosePopout={() => window.close()} />
       <Tabs tabs={MAIN_TABS} active={mainTab} onChange={id => { setMainTab(id); setSubTab('dashboard'); }}
         rightContent={<div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, padding: '0 4px' }}>
           🤖 <span style={{ color: aiEnabled ? 'var(--success)' : 'var(--text-secondary)' }}>AI</span>
@@ -147,14 +204,24 @@ export const App: React.FC = () => {
       {/* ===== 설정 ===== */}
       <Modal open={modal === 'settings'} onClose={() => setModal(null)} title="⚙️ 설정" width={420}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14, fontSize: 12 }}>
+          {/* 현재 버전 + 연결 상태 요약 */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 10px', background: 'var(--bg-tertiary)', borderRadius: 'var(--radius)', fontSize: 10 }}>
+            <span>Process Agent v{(() => { try { return chrome.runtime.getManifest().version; } catch { return '1.0.0'; } })()}</span>
+            <span style={{ color: connectionStatus === 'connected' ? '#0f5132' : '#842029' }}>
+              {connectionStatus === 'connected' ? `🟢 ${connectedUser}` : connectionStatus === 'checking' ? '🟡 확인중' : '🔴 미연결'}
+            </span>
+          </div>
           <fieldset style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 12 }}>
             <legend style={{ fontWeight: 700, fontSize: 11, padding: '0 4px' }}>🔗 시스템 연결</legend>
             <label style={{ display: 'block', marginBottom: 8 }}>Jira URL<input value={jiraUrl} onChange={e => setJiraUrl(e.target.value)} placeholder="https://jira.company.com" style={inputSt} /></label>
             <label style={{ display: 'block', marginBottom: 8 }}>Confluence URL<input value={confluenceUrl} onChange={e => setConfluenceUrl(e.target.value)} placeholder="https://confluence.company.com" style={inputSt} /></label>
+            <label style={{ display: 'block', marginBottom: 8 }}>Confluence Space Key<input value={confluenceSpace} onChange={e => setConfluenceSpace(e.target.value)} placeholder="SLM-CONFIG" style={inputSt} /><div style={{ fontSize: 10, color: 'var(--text-secondary)', marginTop: 2 }}>Admin 설정이 저장되는 Confluence Space</div></label>
             <label style={{ display: 'block' }}>PAT<input type="password" value={pat} onChange={e => setPat(e.target.value)} placeholder="Personal Access Token" style={inputSt} /></label>
           </fieldset>
           <fieldset style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 12 }}>
-            <legend style={{ fontWeight: 700, fontSize: 11, padding: '0 4px' }}>📋 Issue 기본값</legend>
+            <legend style={{ fontWeight: 700, fontSize: 11, padding: '0 4px' }}>📋 프로젝트 설정</legend>
+            <label style={{ display: 'block', marginBottom: 8 }}>SLM Project Key<input value={slmProject} onChange={e => setSlmProject(e.target.value)} placeholder="예: SLMPROJ" style={inputSt} /><div style={{ fontSize: 10, color: 'var(--text-secondary)', marginTop: 2 }}>SLM 탭에서 조회할 Jira 프로젝트</div></label>
+            <label style={{ display: 'block', marginBottom: 8 }}>일반 Project Key<input value={genProject} onChange={e => setGenProject(e.target.value)} placeholder="예: GENPROJ" style={inputSt} /><div style={{ fontSize: 10, color: 'var(--text-secondary)', marginTop: 2 }}>일반 탭에서 조회할 Jira 프로젝트</div></label>
             <label style={{ display: 'block' }}>SW-Task Component (기본값)<input value={defaultComponent} onChange={e => setDefaultComponent(e.target.value)} placeholder="Common" style={inputSt} /></label>
             <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginTop: 4 }}>Issue 생성 시 Component 필드에 자동 설정됩니다.</div>
           </fieldset>
@@ -162,10 +229,65 @@ export const App: React.FC = () => {
             <legend style={{ fontWeight: 700, fontSize: 11 }}>🎨 화면</legend>
             <label>테마 <select value={theme} onChange={e => setTheme(e.target.value)} style={{ ...inputSt, width: 'auto', marginLeft: 8 }}><option value="system">시스템</option><option value="light">라이트</option><option value="dark">다크</option></select></label>
           </fieldset>
+          {/* 연결 상태 패널 */}
+          <fieldset style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 12 }}>
+            <legend style={{ fontWeight: 700, fontSize: 11, padding: '0 4px' }}>🔌 연결 상태</legend>
+            {testResult.testing ? (
+              <div style={{ textAlign: 'center', padding: 8, color: 'var(--text-secondary)' }}>🔄 연결 테스트 중...</div>
+            ) : testResult.tested ? (
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                  <span style={{ fontSize: 14 }}>{testResult.jira ? '✅' : '❌'}</span>
+                  <span>Jira: {testResult.jira ? `연결됨 (${testResult.user})` : '연결 실패'}</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                  <span style={{ fontSize: 14 }}>{testResult.confluence ? '✅' : '❌'}</span>
+                  <span>Confluence: {testResult.confluence ? '연결됨' : confluenceUrl ? '연결 실패' : '미입력'}</span>
+                </div>
+                {!testResult.jira && <div style={{ padding: '4px 8px', background: '#f8d7da', borderRadius: 'var(--radius)', fontSize: 10, color: '#842029', marginTop: 4 }}>URL과 PAT를 확인하세요. PAT는 Jira 프로필 → Personal Access Tokens에서 생성합니다.</div>}
+              </div>
+            ) : connectionStatus === 'connected' ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#0f5132' }}>
+                <span style={{ fontSize: 14 }}>✅</span> 연결됨: {connectedUser}
+              </div>
+            ) : (
+              <div style={{ color: 'var(--text-secondary)', fontSize: 11 }}>아래 [🔌 연결 테스트] 버튼을 눌러 연결 상태를 확인하세요.</div>
+            )}
+          </fieldset>
           <div style={{ display: 'flex', gap: 6 }}>
-            <button onClick={() => { showToast('설정 저장 완료'); setModal(null); }} style={{ ...btnSt, flex: 1 }}>💾 저장</button>
-            <button onClick={() => { setModal('onboarding'); setOnboardingStep(0); }} style={{ ...btnOut, flex: 1 }}>🔄 온보딩</button>
-            <button onClick={() => setModal('shortcut')} style={{ ...btnOut, flex: 1 }}>⌨️ 단축키</button>
+            <button onClick={runConnectionTest} disabled={!jiraUrl || !pat} style={{ ...btnOut, flex: 1, opacity: jiraUrl && pat ? 1 : 0.5 }}>🔌 연결 테스트</button>
+            <button onClick={saveSettings} style={{ ...btnSt, flex: 1 }}>💾 저장</button>
+          </div>
+          <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+            <button onClick={() => { setModal('onboarding'); setOnboardingStep(0); }} style={{ ...btnOut, flex: 1, fontSize: 10 }}>🔄 온보딩 투어</button>
+            <button onClick={() => setModal('shortcut')} style={{ ...btnOut, flex: 1, fontSize: 10 }}>⌨️ 단축키</button>
+          </div>
+          <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+            <button onClick={async () => {
+              const json = await exportSettings();
+              const blob = new Blob([json], { type: 'application/json' });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url; a.download = 'pa-settings.json'; a.click();
+              URL.revokeObjectURL(url);
+              showToast('설정 내보내기 완료 (pa-settings.json)');
+            }} style={{ ...btnOut, flex: 1, fontSize: 10 }}>📤 설정 내보내기</button>
+            <button onClick={() => {
+              const input = document.createElement('input');
+              input.type = 'file'; input.accept = '.json';
+              input.onchange = async (e: any) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                const text = await file.text();
+                const ok = await importSettings(text);
+                if (ok) { showToast('설정 가져오기 완료 — 새로고침합니다'); setTimeout(() => window.location.reload(), 1000); }
+                else { showToast('가져오기 실패 — 올바른 JSON 파일을 선택하세요', 'error'); }
+              };
+              input.click();
+            }} style={{ ...btnOut, flex: 1, fontSize: 10 }}>📥 설정 가져오기</button>
+          </div>
+          <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginTop: 4 }}>
+            💡 Extension 재설치 시 설정이 초기화됩니다. 내보내기로 백업하세요.
           </div>
         </div>
       </Modal>
@@ -206,44 +328,54 @@ export const App: React.FC = () => {
             )}
             {adminSubTab === 'meta' && (
               <div>
-                <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
-                  {['가이드', '체크리스트', 'AI 지침', '필드'].map(t => <button key={t} style={{ ...btnOut, padding: '3px 6px', fontSize: 10 }}>{t}</button>)}
-                  <button style={{ ...btnSt, padding: '3px 6px', fontSize: 10, marginLeft: 'auto' }}>+ 추가</button>
-                </div>
-                <table style={{ width: '100%', fontSize: 11, borderCollapse: 'collapse' }}>
-                  <thead><tr style={{ background: 'var(--bg-tertiary)' }}><th style={{ padding: 4, textAlign: 'left' }}>Code</th><th style={{ padding: 4, textAlign: 'left' }}>Type</th><th style={{ padding: 4, textAlign: 'left' }}>Title</th><th style={{ padding: 4, textAlign: 'center' }}>가이드</th><th style={{ padding: 4, textAlign: 'center' }}>CL</th></tr></thead>
-                  <tbody>{META_DATA.map(m => (
-                    <tr key={m.code} style={{ borderBottom: '1px solid var(--bg-tertiary)' }}><td style={{ padding: 4 }}>{m.code}</td><td style={{ padding: 4 }}>{m.issueType}</td><td style={{ padding: 4 }}>{m.title}</td><td style={{ padding: 4, textAlign: 'center' }}>{m.guide}</td><td style={{ padding: 4, textAlign: 'center' }}>{m.checklist}</td></tr>
-                  ))}</tbody>
-                </table>
-                <div style={{ display: 'flex', gap: 4, marginTop: 8 }}><button style={{ ...btnOut, fontSize: 10 }}>📥 Import</button><button style={{ ...btnOut, fontSize: 10 }}>📤 Export</button></div>
+                {!confluenceSpace ? (
+                  <div style={{ padding: 8, background: '#fff3cd', borderRadius: 'var(--radius)', fontSize: 10, color: '#856404' }}>⚠️ ⚙️ 설정에서 Confluence Space Key를 입력하세요</div>
+                ) : (
+                  <>
+                    <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
+                      {['가이드', '체크리스트', 'AI 지침', '필드'].map(t => <button key={t} style={{ ...btnOut, padding: '3px 6px', fontSize: 10 }}>{t}</button>)}
+                      <button onClick={() => { setMetaData(prev => [...prev, { code: `NEW-${Date.now() % 1000}`, issueType: 'Task', title: '새 항목', guide: 'X', checklist: 'X' }]); }} style={{ ...btnSt, padding: '3px 6px', fontSize: 10, marginLeft: 'auto' }}>+ 추가</button>
+                    </div>
+                    {metaData.length === 0 ? (
+                      <div style={{ textAlign: 'center', padding: 16, color: 'var(--text-secondary)', fontSize: 11 }}>메타데이터가 없습니다. [+ 추가]로 생성하세요.</div>
+                    ) : (
+                      <table style={{ width: '100%', fontSize: 11, borderCollapse: 'collapse' }}>
+                        <thead><tr style={{ background: 'var(--bg-tertiary)' }}><th style={{ padding: 4, textAlign: 'left' }}>Code</th><th style={{ padding: 4, textAlign: 'left' }}>Type</th><th style={{ padding: 4, textAlign: 'left' }}>Title</th><th style={{ padding: 4, textAlign: 'center' }}>가이드</th><th style={{ padding: 4, textAlign: 'center' }}>CL</th><th style={{ padding: 4 }}></th></tr></thead>
+                        <tbody>{metaData.map((m: any, idx: number) => (
+                          <tr key={m.code || idx} style={{ borderBottom: '1px solid var(--bg-tertiary)' }}>
+                            <td style={{ padding: 4 }}>{m.code}</td><td style={{ padding: 4 }}>{m.issueType}</td><td style={{ padding: 4 }}>{m.title}</td><td style={{ padding: 4, textAlign: 'center' }}>{m.guide}</td><td style={{ padding: 4, textAlign: 'center' }}>{m.checklist}</td>
+                            <td style={{ padding: 4 }}><button onClick={() => setMetaData(prev => prev.filter((_: any, i: number) => i !== idx))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', fontSize: 10 }}>✕</button></td>
+                          </tr>
+                        ))}</tbody>
+                      </table>
+                    )}
+                    <div style={{ display: 'flex', gap: 4, marginTop: 8 }}>
+                      <button onClick={async () => { const ok = await dataService.saveMetadata(confluenceSpace, metaData); showToast(ok ? '메타데이터 저장 완료' : '저장 실패 — Confluence 연결 확인', ok ? 'success' : 'error'); }} style={{ ...btnSt, fontSize: 10 }}>💾 Confluence 저장</button>
+                      <button onClick={async () => { const data = await dataService.getMetadata(confluenceSpace); if (data.length > 0) { setMetaData(data); showToast('불러오기 완료'); } else showToast('데이터 없음', 'error'); }} style={{ ...btnOut, fontSize: 10 }}>🔄 불러오기</button>
+                    </div>
+                  </>
+                )}
               </div>
             )}
             {adminSubTab === 'version' && (
               <div>
                 <div style={{ padding: 8, background: 'var(--bg-secondary)', borderRadius: 'var(--radius)', marginBottom: 8 }}>
-                  <div style={{ fontWeight: 600 }}>정식 버전: v2.3 (2026-04-10)</div>
-                  <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>전체 사용자에게 적용 중</div>
+                  <div style={{ fontWeight: 600 }}>정식 버전: {versionManifest?.version || '미배포'}</div>
+                  <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>{versionManifest?.publishedAt || '아직 배포된 버전이 없습니다'}</div>
                 </div>
-                {VERSION_HISTORY.filter(v => v.status === 'draft').map(v => (
-                  <div key={v.ver} style={{ padding: 8, border: '2px dashed var(--warning)', borderRadius: 'var(--radius)', marginBottom: 8, background: '#fff3cd08' }}>
-                    <div style={{ fontWeight: 600 }}>🧪 테스트 버전: {v.ver} ({v.date})</div>
-                    <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginBottom: 6 }}>변경 {v.changes}건 · Admin만 미리보기 가능</div>
+                {draftVersion && (
+                  <div style={{ padding: 8, border: '2px dashed var(--warning)', borderRadius: 'var(--radius)', marginBottom: 8, background: '#fff3cd08' }}>
+                    <div style={{ fontWeight: 600 }}>🧪 테스트: {draftVersion.version || 'draft'}</div>
+                    <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginBottom: 6 }}>{draftVersion.changes?.join(', ') || '변경사항 없음'}</div>
                     <div style={{ display: 'flex', gap: 4 }}>
                       <button onClick={() => showToast('미리보기 모드 적용')} style={{ ...btnOut, fontSize: 10, padding: '3px 8px' }}>🔍 미리보기</button>
-                      <button onClick={() => showToast('정식 배포 완료')} style={{ ...btnSt, fontSize: 10, padding: '3px 8px' }}>🚀 정식 배포</button>
-                      <button onClick={() => showToast('테스트 버전 삭제')} style={{ ...btnOut, fontSize: 10, padding: '3px 8px', color: 'var(--danger)' }}>🗑 삭제</button>
+                      <button onClick={async () => { const ok = await dataService.saveVersionManifest(confluenceSpace, { ...draftVersion, status: 'published', publishedAt: new Date().toISOString() }); await dataService.deleteDraft(confluenceSpace); if (ok) { showToast('정식 배포 완료'); loadLiveData(); } else showToast('배포 실패', 'error'); }} style={{ ...btnSt, fontSize: 10, padding: '3px 8px' }}>🚀 정식 배포</button>
+                      <button onClick={async () => { await dataService.deleteDraft(confluenceSpace); setDraftVersion(null); showToast('삭제 완료'); }} style={{ ...btnOut, fontSize: 10, padding: '3px 8px', color: 'var(--danger)' }}>🗑 삭제</button>
                     </div>
                   </div>
-                ))}
-                <button onClick={() => showToast('테스트 버전 생성')} style={{ ...btnOut, width: '100%', marginBottom: 12, fontSize: 11 }}>📝 새 테스트 버전 생성</button>
-                <div style={{ fontWeight: 600, marginBottom: 4 }}>배포 이력:</div>
-                {VERSION_HISTORY.filter(v => v.status !== 'draft').map(v => (
-                  <div key={v.ver} style={{ padding: '4px 8px', borderBottom: '1px solid var(--bg-tertiary)', display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
-                    <span><b>{v.ver}</b> {v.date} · 변경 {v.changes}건</span>
-                    {v.status === 'current' ? <span style={{ color: 'var(--success)' }}>현재</span> : <button onClick={() => showToast(v.ver + ' 복원 완료')} style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', fontSize: 10 }}>↩ 복원</button>}
-                  </div>
-                ))}
+                )}
+                <button onClick={async () => { const draft = { version: (versionManifest?.version || 'v0.0') + '-draft', createdAt: new Date().toISOString(), changes: [] }; const ok = await dataService.saveDraft(confluenceSpace, draft); if (ok) { setDraftVersion(draft); showToast('테스트 버전 생성'); } else showToast('생성 실패 — Confluence 연결 확인', 'error'); }} style={{ ...btnOut, width: '100%', marginBottom: 12, fontSize: 11 }}>📝 새 테스트 버전 생성</button>
+                {!confluenceSpace && <div style={{ padding: 8, background: '#fff3cd', borderRadius: 'var(--radius)', fontSize: 10, color: '#856404' }}>⚠️ ⚙️ 설정에서 Confluence Space Key를 입력하세요</div>}
               </div>
             )}
             {adminSubTab === 'user' && (
@@ -259,42 +391,32 @@ export const App: React.FC = () => {
       {/* ===== KPI ===== */}
       <Modal open={modal === 'kpi'} onClose={() => setModal(null)} title="📊 KPI Dashboard" width={420}>
         <div style={{ fontSize: 12 }}>
-          <div style={{ padding: 10, background: 'var(--bg-secondary)', borderRadius: 'var(--radius)', marginBottom: 8 }}>
-            <div style={{ fontWeight: 600, marginBottom: 6 }}>업무 지표</div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>주간 처리</span><span>{KPI_METRICS.weeklyDone}건 / {KPI_METRICS.weeklyTarget}건</span></div>
-            {barPct(Math.round(KPI_METRICS.weeklyDone / KPI_METRICS.weeklyTarget * 100))}
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6 }}><span>30일 완료율</span><span>{KPI_METRICS.monthlyRate}%</span></div>
-            {barPct(KPI_METRICS.monthlyRate)}
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6 }}><span>평균 소요일</span><span>{KPI_METRICS.avgDays}일</span></div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6 }}><span>지연율</span><span style={{ color: 'var(--danger)' }}>{KPI_METRICS.delayRate}%</span></div>
-          </div>
-          <div style={{ padding: 10, background: 'var(--bg-secondary)', borderRadius: 'var(--radius)', marginBottom: 8 }}>
-            <div style={{ fontWeight: 600, marginBottom: 6 }}>프로세스 준수율</div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>전체</span><span>{KPI_METRICS.processRate}%</span></div>
-            {barPct(KPI_METRICS.processRate)}
-            {KPI_METRICS.stageRates.map(s => (
-              <div key={s.name} style={{ marginTop: 4 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11 }}><span>{s.name}</span><span>{s.rate}%</span></div>
-                {barPct(s.rate, s.rate >= 70 ? 'var(--success)' : s.rate >= 50 ? 'var(--warning)' : 'var(--danger)')}
+          {!kpiMetrics ? (
+            <div style={{ textAlign: 'center', padding: 20, color: 'var(--text-secondary)' }}>
+              {dataService.isConnected() ? '🔄 KPI 로드 중...' : '🔗 Jira 연결 후 KPI가 표시됩니다.'}
+            </div>
+          ) : (
+            <>
+              <div style={{ padding: 10, background: 'var(--bg-secondary)', borderRadius: 'var(--radius)', marginBottom: 8 }}>
+                <div style={{ fontWeight: 600, marginBottom: 6 }}>업무 지표</div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>전체 과제</span><span>{kpiMetrics.total}건</span></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}><span>완료</span><span>{kpiMetrics.done}건 ({kpiMetrics.completionRate}%)</span></div>
+                {barPct(kpiMetrics.completionRate)}
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6 }}><span>평균 소요일</span><span>{kpiMetrics.avgDays}일</span></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}><span>지연 과제</span><span style={{ color: 'var(--danger)' }}>{kpiMetrics.delayCount}건 ({kpiMetrics.delayRate}%)</span></div>
+                {barPct(kpiMetrics.delayRate, 'var(--danger)')}
               </div>
-            ))}
-          </div>
-          <div style={{ padding: 10, background: 'var(--bg-secondary)', borderRadius: 'var(--radius)' }}>
-            <div style={{ fontWeight: 600, marginBottom: 6 }}>사용 지표</div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>가이드 조회</span><span>{KPI_METRICS.guideViews}회</span></div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>AI 질문</span><span>{KPI_METRICS.aiQuestions}회</span></div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>재사용 복사</span><span>{KPI_METRICS.reuseCount}회</span></div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>VOC 등록</span><span>{KPI_METRICS.vocCount}건</span></div>
-          </div>
+            </>
+          )}
         </div>
       </Modal>
 
       {/* ===== 알림 ===== */}
-      <Modal open={modal === 'alert'} onClose={() => setModal(null)} title={`🔔 알림 (${ALERT_DATA.length}건)`} width={380}>
+      <Modal open={modal === 'alert'} onClose={() => setModal(null)} title={`🔔 알림 (${alertData.length}건)`} width={380}>
         <div style={{ fontSize: 12 }}>
-          {ALERT_DATA.length === 0 ? (
+          {alertData.length === 0 ? (
             <div style={{ textAlign: 'center', padding: 20, color: 'var(--text-secondary)' }}>새로운 알림이 없습니다</div>
-          ) : ALERT_DATA.map(a => (
+          ) : alertData.map(a => (
             <div key={a.id} style={{ padding: '8px', borderBottom: '1px solid var(--bg-tertiary)', display: 'flex', gap: 8, alignItems: 'flex-start' }}>
               <span>{a.type === 'delay' ? '🔴' : a.type === 'warn' ? '🟡' : '🔄'}</span>
               <div style={{ flex: 1 }}>

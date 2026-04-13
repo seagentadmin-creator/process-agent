@@ -38,6 +38,8 @@ src/
 ```
 
 ## Key Design Decisions
+- Data Pipeline: Settings → chrome.storage → DataService(싱글톤) → JiraClient/ConfluenceClient → Feature Views (Mock 없음)
+- 연결 안됨 → Mock 데이터 + 안내 배너, 연결됨 → Jira 실시간 데이터 + 캐시
 - Admin 비밀번호: P@ssw0rd## (하드코딩, Phase 2 → Confluence)
 - SLM Workflow: 요구사항→분석→설계→구현→테스트→검증→완료
 - General Workflow: To Do→In Progress→Review→Done

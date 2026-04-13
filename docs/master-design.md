@@ -778,3 +778,86 @@ core/storage-helper.ts:
 3차: pa-settings.json 내보내기/가져오기 (수동 백업)
 4차: Confluence PA-CONFIG 페이지 (Phase 2, 서버 백업)
 ```
+
+---
+
+## 15. GitHub URL 및 Admin 충돌 관리
+
+### GitHub Enterprise 지원
+
+```
+setup.bat 실행 시:
+
+  GitHub URL [https://github.com/seagentadmin-creator/process-agent]:
+  > https://github.company.com/team/process-agent
+
+  자동 파싱:
+    Host:  github.company.com
+    Owner: team
+    Repo:  process-agent
+    API:   https://github.company.com/api/v3   ← Enterprise
+
+  Public GitHub 입력 시:
+    Host:  github.com
+    Owner: seagentadmin-creator
+    Repo:  process-agent
+    API:   https://api.github.com               ← Public
+```
+
+### pa-config.ini 구조
+
+```
+[ProcessAgent]
+GITHUB_URL=https://github.company.com/team/process-agent
+GITHUB_API=https://github.company.com/api/v3
+GITHUB_OWNER=team
+GITHUB_REPO=process-agent
+```
+
+### Admin 충돌 시나리오
+
+```
+상황:
+  Admin A: 회사 GitHub (github.company.com/team/process-agent)
+  Admin B: 외부 GitHub (github.com/seagentadmin-creator/process-agent)
+
+  → 같은 설치 폴더에 pa-config.ini가 1개만 존재
+  → 나중에 setup.bat 실행한 Admin의 설정으로 덮어쓰기
+```
+
+### 충돌 방지 정책
+
+```
+정책 1: 팀별 단일 Admin (권장)
+  → 1개 팀 = 1명 Admin = 1개 GitHub URL
+  → pa-config.ini는 Admin이 최초 1회만 설정
+  → User는 setup.bat → User 메뉴로 설치 (GitHub 입력 불필요)
+  → User는 Admin이 설정한 GitHub에서 자동 업데이트
+
+정책 2: 다중 GitHub (고급)
+  → 회사 GitHub = 소스 코드 관리 (개발용)
+  → 외부 GitHub = Release 배포 (팀원용)
+  → setup.bat에는 Release 배포용 GitHub만 입력
+  → 개발자는 별도로 git remote 관리
+
+정책 3: Confluence 기반 배포 (Phase 2)
+  → GitHub 대신 Confluence에서 zip 배포
+  → pa-config.ini에 GitHub 불필요
+  → Admin이 Confluence에 zip 업로드 → 팀원 자동 업데이트
+```
+
+### 파일별 역할
+
+```
+pa-config.ini (설치 폴더):
+  → GitHub URL, API, Owner, Repo
+  → setup.bat (Admin) 실행 시 생성
+  → User는 수정하지 않음
+  → updater.py가 읽어서 업데이트 체크
+
+updater.py:
+  → pa-config.ini에서 GITHUB_API 로드
+  → Public: api.github.com/repos/{owner}/{repo}/releases/latest
+  → Enterprise: github.company.com/api/v3/repos/{owner}/{repo}/releases/latest
+  → config가 없으면 api.github.com fallback
+```

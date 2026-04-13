@@ -76,19 +76,45 @@ echo  ==================================================
 echo    Step 2/2 : GitHub Info
 echo  ==================================================
 echo.
-echo    URL example: https://github.com/owner/repo
+echo    Enter full GitHub repository URL.
+echo.
+echo    Public:     https://github.com/owner/repo
+echo    Enterprise: https://github.company.com/owner/repo
 echo.
 
-set DEFAULT_OWNER=seagentadmin-creator
-set DEFAULT_REPO=process-agent
+set DEFAULT_URL=https://github.com/seagentadmin-creator/process-agent
 
-set /p GH_OWNER="  GitHub Owner [%DEFAULT_OWNER%]: "
-if "%GH_OWNER%"=="" set GH_OWNER=%DEFAULT_OWNER%
+set /p GH_URL="  GitHub URL [%DEFAULT_URL%]: "
+if "%GH_URL%"=="" set GH_URL=%DEFAULT_URL%
 
-set /p GH_REPO="  GitHub Repo [%DEFAULT_REPO%]: "
-if "%GH_REPO%"=="" set GH_REPO=%DEFAULT_REPO%
+rem === Parse URL ===
+if "%GH_URL:~-1%"=="/" set GH_URL=%GH_URL:~0,-1%
+
+for /f "tokens=1,2,3,4,5 delims=/" %%a in ("%GH_URL%") do (
+    set GH_PROTO=%%a
+    set GH_HOST=%%c
+    set GH_OWNER=%%d
+    set GH_REPO=%%e
+)
+
+rem Determine API URL (public vs enterprise)
+echo %GH_HOST% | findstr /c:"github.com" >nul
+if %ERRORLEVEL%==0 (
+    set GH_API=https://api.github.com
+) else (
+    set GH_API=https://%GH_HOST%/api/v3
+)
+
+echo.
+echo    Host:  %GH_HOST%
+echo    Owner: %GH_OWNER%
+echo    Repo:  %GH_REPO%
+echo    API:   %GH_API%
+echo.
 
 echo [ProcessAgent] > "%~dp0pa-config.ini"
+echo GITHUB_URL=%GH_URL% >> "%~dp0pa-config.ini"
+echo GITHUB_API=%GH_API% >> "%~dp0pa-config.ini"
 echo GITHUB_OWNER=%GH_OWNER% >> "%~dp0pa-config.ini"
 echo GITHUB_REPO=%GH_REPO% >> "%~dp0pa-config.ini"
 
@@ -146,6 +172,7 @@ if not exist "%~dp0pa-config.ini" (
 
 for /f "tokens=1,* delims==" %%a in ('findstr "GITHUB_OWNER" "%~dp0pa-config.ini"') do set GH_OWNER=%%b
 for /f "tokens=1,* delims==" %%a in ('findstr "GITHUB_REPO" "%~dp0pa-config.ini"') do set GH_REPO=%%b
+for /f "tokens=1,* delims==" %%a in ('findstr "GITHUB_API" "%~dp0pa-config.ini"') do set GH_API=%%b
 
 echo  Repository: %GH_OWNER%/%GH_REPO%
 echo.
@@ -230,6 +257,7 @@ if not exist "%~dp0pa-config.ini" (
 for /f "tokens=1,* delims==" %%a in ('findstr "GITHUB_OWNER" "%~dp0pa-config.ini"') do set GH_OWNER=%%b
 for /f "tokens=1,* delims==" %%a in ('findstr "GITHUB_REPO" "%~dp0pa-config.ini"') do set GH_REPO=%%b
 
+for /f "tokens=1,* delims==" %%a in ('findstr "GITHUB_API" "%~dp0pa-config.ini"') do set GH_API=%%b
 if exist "%~dp0pa-user.ini" (
     for /f "tokens=1,* delims==" %%a in ('findstr "INSTALL_DIR" "%~dp0pa-user.ini"') do set INSTALL_DIR=%%b
 ) else (
@@ -265,7 +293,7 @@ echo.
 
 if exist "%~dp0pa-config.ini" (
     echo  [OK] Config file exists
-    for /f "tokens=1,* delims==" %%a in ('findstr "GITHUB_OWNER" "%~dp0pa-config.ini"') do echo       GitHub: %%b
+    for /f "tokens=1,* delims==" %%a in ('findstr "GITHUB_URL" "%~dp0pa-config.ini"') do echo       GitHub: %%b
 ) else (
     echo  [--] Config file not found
 )
@@ -291,7 +319,7 @@ if %errorlevel%==0 (echo  [OK] Registry Edge) else (echo  [--] Registry Edge)
 python --version >nul 2>&1
 if %errorlevel%==0 (echo  [OK] Python installed) else (echo  [--] Python not installed)
 
-curl -s --connect-timeout 5 https://api.github.com >nul 2>&1
+curl -s --connect-timeout 5 %GH_API% >nul 2>&1
 if %errorlevel%==0 (echo  [OK] GitHub accessible) else (echo  [--] GitHub not accessible)
 
 echo.
@@ -404,7 +432,7 @@ exit /b 0
 set TEMP_DIR=%TEMP%\pa-update
 if not exist "%TEMP_DIR%" mkdir "%TEMP_DIR%"
 
-curl -s "https://api.github.com/repos/%GH_OWNER%/%GH_REPO%/releases/latest" > "%TEMP_DIR%\release.json" 2>nul
+curl -s "%GH_API%/repos/%GH_OWNER%/%GH_REPO%/releases/latest" > "%TEMP_DIR%\release.json" 2>nul
 if errorlevel 1 (
     echo  [ERROR] GitHub connection failed.
     exit /b 1

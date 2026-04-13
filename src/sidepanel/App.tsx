@@ -90,6 +90,7 @@ export const App: React.FC = () => {
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'checking'>('checking');
   const [connectedUser, setConnectedUser] = useState('');
   const [testResult, setTestResult] = useState<{ jira: boolean; confluence: boolean; user: string; tested: boolean; testing: boolean }>({ jira: false, confluence: false, user: '', tested: false, testing: false });
+  const [updateInfo, setUpdateInfo] = useState<{ checking: boolean; available: boolean; latest: string; current: string }>({ checking: false, available: false, latest: '', current: '' });
 
   // Settings 로드
   useEffect(() => {
@@ -121,6 +122,35 @@ export const App: React.FC = () => {
   }, []);
 
   // Settings 저장
+  // 업데이트 확인 (Extension 내부에서 GitHub API 직접 호출)
+  const checkForUpdate = async () => {
+    setUpdateInfo(prev => ({ ...prev, checking: true }));
+    const currentVer = (() => { try { return chrome.runtime.getManifest().version; } catch { return '1.0.0'; } })();
+    try {
+      const stored = await storageLoad(['pa-confluence-space']);
+      // pa-config.ini의 GitHub 정보는 chrome.storage에 없으므로
+      // Extension settings에 GitHub URL을 저장하도록 함
+      const ghConfig = await storageLoad(['pa-github-api', 'pa-github-owner', 'pa-github-repo']);
+      const api = ghConfig['pa-github-api'] as string;
+      const owner = ghConfig['pa-github-owner'] as string;
+      const repo = ghConfig['pa-github-repo'] as string;
+      if (!api || !owner || !repo) {
+        setUpdateInfo({ checking: false, available: false, latest: '', current: currentVer });
+        return;
+      }
+      const res = await fetch(`${api}/repos/${owner}/${repo}/releases/latest`, { headers: { 'User-Agent': 'ProcessAgent' } });
+      if (res.ok) {
+        const data = await res.json();
+        const latestVer = (data.tag_name || '').replace('v', '');
+        setUpdateInfo({ checking: false, available: latestVer !== currentVer, latest: latestVer, current: currentVer });
+      } else {
+        setUpdateInfo({ checking: false, available: false, latest: '', current: currentVer });
+      }
+    } catch {
+      setUpdateInfo({ checking: false, available: false, latest: '', current: currentVer });
+    }
+  };
+
   // 연결 테스트 (저장 없이 현재 입력값으로 테스트)
   const runConnectionTest = async () => {
     setTestResult(prev => ({ ...prev, testing: true, tested: false }));
@@ -204,12 +234,30 @@ export const App: React.FC = () => {
       {/* ===== 설정 ===== */}
       <Modal open={modal === 'settings'} onClose={() => setModal(null)} title="⚙️ 설정" width={420}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14, fontSize: 12 }}>
-          {/* 현재 버전 + 연결 상태 요약 */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 10px', background: 'var(--bg-tertiary)', borderRadius: 'var(--radius)', fontSize: 10 }}>
-            <span>Process Agent v{(() => { try { return chrome.runtime.getManifest().version; } catch { return '1.0.0'; } })()}</span>
-            <span style={{ color: connectionStatus === 'connected' ? '#0f5132' : '#842029' }}>
-              {connectionStatus === 'connected' ? `🟢 ${connectedUser}` : connectionStatus === 'checking' ? '🟡 확인중' : '🔴 미연결'}
-            </span>
+          {/* 현재 버전 + 연결 상태 + 업데이트 확인 */}
+          <div style={{ padding: '8px 10px', background: 'var(--bg-tertiary)', borderRadius: 'var(--radius)', fontSize: 10 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontWeight: 600 }}>Process Agent v{(() => { try { return chrome.runtime.getManifest().version; } catch { return '1.0.0'; } })()}</span>
+              <span style={{ color: connectionStatus === 'connected' ? '#0f5132' : '#842029' }}>
+                {connectionStatus === 'connected' ? `🟢 ${connectedUser}` : connectionStatus === 'checking' ? '🟡 확인중' : '🔴 미연결'}
+              </span>
+            </div>
+            {updateInfo.available && (
+              <div style={{ marginTop: 4, padding: '4px 8px', background: '#cfe2ff', borderRadius: 4, color: '#084298', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>🔄 새 버전 v{updateInfo.latest} 사용 가능 (현재 v{updateInfo.current})</span>
+              </div>
+            )}
+            <div style={{ marginTop: 4, display: 'flex', gap: 6 }}>
+              <button onClick={checkForUpdate} disabled={updateInfo.checking} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 4, padding: '2px 6px', cursor: 'pointer', fontSize: 9, color: 'var(--text-secondary)' }}>
+                {updateInfo.checking ? '확인중...' : '🔍 업데이트 확인'}
+              </button>
+              {updateInfo.available && (
+                <span style={{ fontSize: 9, color: 'var(--text-secondary)' }}>setup.bat → Update 실행하세요</span>
+              )}
+              {updateInfo.latest && !updateInfo.available && (
+                <span style={{ fontSize: 9, color: '#0f5132' }}>✅ 최신 버전입니다</span>
+              )}
+            </div>
           </div>
           <fieldset style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 12 }}>
             <legend style={{ fontWeight: 700, fontSize: 11, padding: '0 4px' }}>🔗 시스템 연결</legend>

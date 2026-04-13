@@ -46,7 +46,7 @@ src/
 - 설정 저장: Confluence SLM-CONFIG 스페이스 JSON 코드블록
 - Process Tailoring: Issue Type별 자동 Tailoring (Stages 방식)
 - Release: dist/ + installer/ 만 zip 배포 (src 미포함)
-- 자동 업데이트: Native Messaging Host (Python, Extension ID 자동감지)
+- 업데이트: setup.bat → Update (같은 폴더 덮어쓰기, Extension ID 불변)
 
 ## Conventions
 - TypeScript strict: false (chrome 타입 호환)

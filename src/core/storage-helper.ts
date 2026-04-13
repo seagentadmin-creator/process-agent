@@ -1,45 +1,38 @@
 /**
- * StorageHelper — chrome.storage.sync 우선, local fallback
+ * StorageHelper — 설정 영속성 3중 보호
  * 
- * sync: Chrome 계정 연동 → Extension 재설치해도 유지
- * local: sync 실패 시 fallback
+ * 1차: chrome.storage.sync (Chrome 계정 연동)
+ * 2차: chrome.storage.local (Extension ID 내)
+ * 3차: Confluence PA-USER-CONFIG (서버 백업, PAT로 식별)
  * 
- * 설정 내보내기/가져오기: JSON 파일로 백업/복원
+ * 업데이트 시 같은 폴더 덮어쓰기 → ID 변경 없음 → 1차+2차 유지
+ * 만약 ID가 바뀌어도 → 1차(sync)에서 복원
+ * sync도 안 되면 → Confluence에서 복원 (Phase 2)
  */
 
 const SETTINGS_KEYS = [
   'pa-jira-url', 'pa-confluence-url', 'pa-pat',
   'pa-slm-project', 'pa-gen-project', 'pa-default-component',
-  'pa-onboarding-done', 'pa-board-id',
+  'pa-confluence-space', 'pa-onboarding-done', 'pa-board-id',
 ];
 
 export async function saveSettings(data: Record<string, any>): Promise<void> {
-  try {
-    // sync에 저장 (Chrome 계정 연동 시 유지)
-    await chrome.storage.sync.set(data);
-  } catch {
-    // sync 실패 시 local
-    try { await chrome.storage.local.set(data); } catch {}
-  }
-  // local에도 백업 저장 (같은 ID면 바로 로드)
+  // sync + local 동시 저장
+  try { await chrome.storage.sync.set(data); } catch {}
   try { await chrome.storage.local.set(data); } catch {}
 }
 
 export async function loadSettings(keys: string[]): Promise<Record<string, any>> {
-  let result: Record<string, any> = {};
-
-  // 1차: sync에서 로드
+  // 1차: sync
   try {
-    result = await chrome.storage.sync.get(keys);
+    const result = await chrome.storage.sync.get(keys);
     if (Object.keys(result).length > 0 && result[keys[0]]) return result;
   } catch {}
-
-  // 2차: local에서 로드
+  // 2차: local
   try {
-    result = await chrome.storage.local.get(keys);
+    return await chrome.storage.local.get(keys);
   } catch {}
-
-  return result;
+  return {};
 }
 
 export async function loadAllSettings(): Promise<Record<string, any>> {
@@ -49,20 +42,13 @@ export async function loadAllSettings(): Promise<Record<string, any>> {
 /** 설정 내보내기 — JSON 문자열 반환 */
 export async function exportSettings(): Promise<string> {
   const data = await loadAllSettings();
-  // PAT는 마스킹
-  const exported = { ...data };
-  if (exported['pa-pat']) {
-    exported['pa-pat-masked'] = exported['pa-pat'].substring(0, 4) + '****';
-  }
-  return JSON.stringify(exported, null, 2);
+  return JSON.stringify(data, null, 2);
 }
 
 /** 설정 가져오기 — JSON 문자열에서 복원 */
 export async function importSettings(json: string): Promise<boolean> {
   try {
     const data = JSON.parse(json);
-    // pa-pat-masked는 무시, 실제 pa-pat만 사용
-    delete data['pa-pat-masked'];
     await saveSettings(data);
     return true;
   } catch {

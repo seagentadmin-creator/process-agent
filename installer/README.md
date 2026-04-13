@@ -1,59 +1,43 @@
-# Process Agent 설치 가이드
+# Process Agent — Installation Guide
 
-## Release zip 구성 (src 코드 미포함)
-
-```
-process-agent-vX.X.X.zip
-├── manifest.json          ← 빌드된 Extension
-├── sidepanel/
-│   └── index.html
-├── sidepanel.js
-├── background/
-│   └── service-worker.js
-├── vendor.js
-└── installer/
-    ├── setup.bat          ← 설치/업데이트 도구
-    ├── pa-config.ini      ← Admin이 생성 후 배포
-    └── README.md
-```
-
-## 설치 순서
-
-### Admin (1회)
+## First Install (Admin)
 
 ```
-1. GitHub Release에서 zip 다운로드
-2. zip 압축 해제 → 차단 해제 (우클릭→속성→차단 해제)
-3. 브라우저에 Extension 등록
-4. installer\setup.bat 더블클릭
-5. [A] Admin 선택 → [1] 최초 설정
-6. 화면 안내대로 Extension ID, GitHub 정보 입력
-7. pa-config.ini 생성됨
-8. 팀원에게 배포: pa-config.ini + GitHub Release URL
+1. setup.bat 실행 → [A] Admin
+2. [1] Initial Setup
+3. Chrome/Edge에서 Extension 등록 (이 폴더 선택)
+4. GitHub URL 입력
+5. 완료
 ```
 
-### User (각자 PC에서)
+## First Install (User)
 
 ```
-1. GitHub Release에서 zip 다운로드 + Admin에게 받은 pa-config.ini 준비
-2. zip 압축 해제 → installer 폴더에 pa-config.ini 복사
-3. installer\setup.bat 더블클릭
-4. [U] User 선택 → [1] 최초 설치
-5. 자동: 다운로드 → 설치 → Extension 등록 안내
-6. 완료
+1. Admin에게 설치 폴더 전달받기
+2. setup.bat 실행 → [U] User → [1] First Install
+3. Chrome/Edge에서 Extension 등록 (이 폴더 선택)
+4. 완료
 ```
 
-### 업데이트
+## Update
 
 ```
-setup.bat → [U] User → [2] 업데이트
-또는 Native Host 설치 시 자동 업데이트
+1. setup.bat 실행 → [U] User → [2] Update
+   또는 [A] Admin → [2] Update
+2. 최신 Release 자동 다운로드
+3. 현재 폴더에 파일 덮어쓰기
+4. Chrome에서 Extension Reload
+5. 완료 — 설정은 Chrome sync에 저장되어 유지됨
 ```
 
-## 다중 사용자/장소
+## Settings Preservation
 
 ```
-각 사용자가 각자 PC에서 독립적으로 설치
-서로 영향 없음
-설정 데이터는 Confluence를 통해 공유
+설정 저장: chrome.storage.sync (Chrome 계정 연동)
+  → 같은 폴더에서 업데이트 → Extension ID 불변 → 설정 유지
+  → Chrome 계정 로그인 시 → 다른 PC에서도 동기화
+
+주의: 새 폴더에서 로드하면 ID 변경 → 설정 초기화
+  → 반드시 같은 폴더에서 업데이트할 것
+  → 만약 초기화된 경우 → ⚙️ 설정 → 📥 가져오기
 ```

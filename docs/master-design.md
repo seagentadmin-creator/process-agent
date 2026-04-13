@@ -861,3 +861,61 @@ updater.py:
   → Enterprise: github.company.com/api/v3/repos/{owner}/{repo}/releases/latest
   → config가 없으면 api.github.com fallback
 ```
+
+---
+
+## 16. 업데이트 및 설정 영속성 (최종)
+
+### 업데이트 방식 — Native Host 제거
+
+```
+기존 (제거됨):
+  Native Messaging Host → Extension ID 필요 → 매번 실패
+
+현재:
+  setup.bat → Update → GitHub Release 다운로드 → 같은 폴더에 덮어쓰기
+  → Extension ID 불변 → chrome.storage 유지 → 설정 보존
+```
+
+### 업데이트 흐름
+
+```
+Admin 또는 User:
+  setup.bat 실행
+  → [2] Update
+  → pa-config.ini에서 GitHub URL 로드
+  → GitHub API로 latest release 확인
+  → zip 다운로드 → 같은 폴더에 Extract (덮어쓰기)
+  → Chrome에서 Extension Reload (수동 클릭 1회)
+  → 완료. 설정은 그대로 유지.
+```
+
+### 설정이 유지되는 이유
+
+```
+Extension 파일 (manifest.json, sidepanel.js 등):
+  → 설치 폴더에 존재
+  → 업데이트 시 덮어쓰기됨
+
+설정 데이터 (Jira URL, PAT, Project Key 등):
+  → chrome.storage.sync에 저장
+  → Extension ID별로 격리
+  → 같은 폴더 = 같은 ID = 설정 유지
+
+결론: 같은 폴더에서 업데이트하면 설정이 절대 유실되지 않음
+```
+
+### 만약 설정이 유실된 경우
+
+```
+원인: 새 폴더에서 Extension 로드 → ID 변경
+
+복원 방법:
+  1차: Chrome 계정 로그인 → sync 자동 복원 (같은 Chrome 계정이면)
+  2차: ⚙️ 설정 → 📥 설정 가져오기 → pa-settings.json 선택
+  3차: 수동 재입력
+
+예방: 
+  - 업데이트는 항상 setup.bat → Update 사용
+  - 절대 새 폴더에서 "Load unpacked" 하지 않기
+```

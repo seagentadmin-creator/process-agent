@@ -9,58 +9,90 @@ title Process Agent Setup
 color 0A
 cls
 
+rem === setup.bat은 반드시 Extension 폴더 안에 있어야 함 ===
+set EXT_DIR=%~dp0
+if "%EXT_DIR:~-1%"=="\" set EXT_DIR=%EXT_DIR:~0,-1%
+
 echo.
 echo  ==================================================
-echo    Process Agent - Setup
+echo    Process Agent - Setup / Update
 echo  ==================================================
 echo.
-echo    [A] Admin
-echo    [U] User
+echo    Extension folder: %EXT_DIR%
 echo.
-set /p ROLE="  (A/U): "
+
+rem Extension 파일 존재 확인
+if not exist "%EXT_DIR%\manifest.json" (
+    echo  [WARNING] manifest.json not found in this folder.
+    echo  This setup.bat must be in the Extension folder.
+    echo.
+    echo  Expected structure:
+    echo    %EXT_DIR%\
+    echo      manifest.json
+    echo      sidepanel.js
+    echo      setup.bat   ^<-- you are here
+    echo.
+    set /p CUSTOM_DIR="  Enter Extension folder path (or Enter to skip): "
+    if not "!CUSTOM_DIR!"=="" set EXT_DIR=!CUSTOM_DIR!
+)
+
+echo    [A] Admin  (Initial Setup / Config)
+echo    [U] User   (Install / Update)
+echo    [S] Status Check
+echo.
+set /p ROLE="  (A/U/S): "
 
 if /i "%ROLE%"=="a" goto :ADMIN_MENU
 if /i "%ROLE%"=="u" goto :USER_MENU
+if /i "%ROLE%"=="s" goto :STATUS
 goto :END
 
+rem ============================================================
+rem  ADMIN
+rem ============================================================
 :ADMIN_MENU
 cls
 echo.
 echo  ==================================================
-echo    Admin Menu
+echo    Admin Setup
 echo  ==================================================
 echo.
-echo    [1] Initial Setup
-echo    [2] Status Check
-echo    [3] Reinstall Native Host
-echo    [4] Uninstall
+echo    Extension folder: %EXT_DIR%
 echo.
-set /p AM="  (1-4): "
+echo    [1] Initial Setup (GitHub URL + Extension)
+echo    [2] Update (Download latest to this folder)
+echo    [3] Change GitHub URL
+echo.
+set /p AM="  (1-3): "
 
 if "%AM%"=="1" goto :ADMIN_SETUP
-if "%AM%"=="2" goto :STATUS
-if "%AM%"=="3" goto :INSTALL_NH
-if "%AM%"=="4" goto :UNINSTALL
+if "%AM%"=="2" goto :DO_UPDATE
+if "%AM%"=="3" goto :CHANGE_GITHUB
 goto :END
 
 :ADMIN_SETUP
 cls
 echo.
 echo  ==================================================
-echo    Step 1/2 : Extension Registration
+echo    Step 1/2 : Register Extension in Browser
 echo  ==================================================
 echo.
 echo  [Chrome]
-echo    1. chrome://extensions
-echo    2. Developer mode ON
-echo    3. Load unpacked
-echo    4. Select downloaded folder
+echo    1. Open chrome://extensions
+echo    2. Enable "Developer mode" (top right)
+echo    3. Click "Load unpacked"
+echo    4. Select folder: %EXT_DIR%
 echo.
 echo  [Edge]
-echo    1. edge://extensions
-echo    2. Developer mode ON
-echo    3. Load unpacked
-echo    4. Select downloaded folder
+echo    1. Open edge://extensions
+echo    2. Enable "Developer mode"
+echo    3. Click "Load unpacked"
+echo    4. Select folder: %EXT_DIR%
+echo.
+echo  IMPORTANT:
+echo    Always load from THIS folder: %EXT_DIR%
+echo    Updates overwrite files here. ID stays the same.
+echo    Settings are preserved automatically.
 echo.
 set /p REG="  Already registered? (Y/n): "
 if /i "%REG%"=="n" (
@@ -70,13 +102,12 @@ if /i "%REG%"=="n" (
     pause >nul
 )
 
+:CHANGE_GITHUB
 cls
 echo.
 echo  ==================================================
-echo    Step 2/2 : GitHub Info
+echo    Step 2/2 : GitHub Repository URL
 echo  ==================================================
-echo.
-echo    Enter full GitHub repository URL.
 echo.
 echo    Public:     https://github.com/owner/repo
 echo    Enterprise: https://github.company.com/owner/repo
@@ -87,7 +118,6 @@ set DEFAULT_URL=https://github.com/seagentadmin-creator/process-agent
 set /p GH_URL="  GitHub URL [%DEFAULT_URL%]: "
 if "%GH_URL%"=="" set GH_URL=%DEFAULT_URL%
 
-rem === Parse URL ===
 if "%GH_URL:~-1%"=="/" set GH_URL=%GH_URL:~0,-1%
 
 for /f "tokens=1,2,3,4,5 delims=/" %%a in ("%GH_URL%") do (
@@ -97,7 +127,6 @@ for /f "tokens=1,2,3,4,5 delims=/" %%a in ("%GH_URL%") do (
     set GH_REPO=%%e
 )
 
-rem Determine API URL (public vs enterprise)
 echo %GH_HOST% | findstr /c:"github.com" >nul
 if %ERRORLEVEL%==0 (
     set GH_API=https://api.github.com
@@ -110,32 +139,23 @@ echo    Host:  %GH_HOST%
 echo    Owner: %GH_OWNER%
 echo    Repo:  %GH_REPO%
 echo    API:   %GH_API%
-echo.
 
-echo [ProcessAgent] > "%~dp0pa-config.ini"
-echo GITHUB_URL=%GH_URL% >> "%~dp0pa-config.ini"
-echo GITHUB_API=%GH_API% >> "%~dp0pa-config.ini"
-echo GITHUB_OWNER=%GH_OWNER% >> "%~dp0pa-config.ini"
-echo GITHUB_REPO=%GH_REPO% >> "%~dp0pa-config.ini"
+echo [ProcessAgent] > "%EXT_DIR%\pa-config.ini"
+echo GITHUB_URL=%GH_URL% >> "%EXT_DIR%\pa-config.ini"
+echo GITHUB_API=%GH_API% >> "%EXT_DIR%\pa-config.ini"
+echo GITHUB_OWNER=%GH_OWNER% >> "%EXT_DIR%\pa-config.ini"
+echo GITHUB_REPO=%GH_REPO% >> "%EXT_DIR%\pa-config.ini"
+echo INSTALL_DIR=%EXT_DIR% >> "%EXT_DIR%\pa-config.ini"
 
 echo.
-call :INSTALL_NH
-
-cls
-echo.
-echo  ==================================================
-echo    Admin Setup Complete
-echo  ==================================================
-echo.
-echo    Repository: %GH_OWNER%/%GH_REPO%
-echo    Config: pa-config.ini
-echo.
-echo    Share with team:
-echo      1. GitHub Release URL
-echo      2. pa-config.ini
-echo.
+echo  [OK] Config saved.
+echo  Press any key...
+pause >nul
 goto :END
 
+rem ============================================================
+rem  USER
+rem ============================================================
 :USER_MENU
 cls
 echo.
@@ -143,146 +163,162 @@ echo  ==================================================
 echo    User Menu
 echo  ==================================================
 echo.
-echo    [1] Install
-echo    [2] Update
-echo    [3] Status Check
-echo    [4] Uninstall
+echo    Extension folder: %EXT_DIR%
 echo.
-set /p UM="  (1-4): "
+echo    [1] First Install (register extension)
+echo    [2] Update (download latest to this folder)
+echo.
+set /p UM="  (1/2): "
 
 if "%UM%"=="1" goto :USER_INSTALL
-if "%UM%"=="2" goto :USER_UPDATE
-if "%UM%"=="3" goto :STATUS
-if "%UM%"=="4" goto :UNINSTALL
+if "%UM%"=="2" goto :DO_UPDATE
 goto :END
 
 :USER_INSTALL
 cls
 echo.
 echo  ==================================================
-echo    Install Extension
+echo    Register Extension
 echo  ==================================================
 echo.
-
-if not exist "%~dp0pa-config.ini" (
-    echo  [ERROR] pa-config.ini not found.
-    echo  Please get pa-config.ini from Admin.
-    goto :END
-)
-
-for /f "tokens=1,* delims==" %%a in ('findstr "GITHUB_OWNER" "%~dp0pa-config.ini"') do set GH_OWNER=%%b
-for /f "tokens=1,* delims==" %%a in ('findstr "GITHUB_REPO" "%~dp0pa-config.ini"') do set GH_REPO=%%b
-for /f "tokens=1,* delims==" %%a in ('findstr "GITHUB_API" "%~dp0pa-config.ini"') do set GH_API=%%b
-
-echo  Repository: %GH_OWNER%/%GH_REPO%
+echo  Open Chrome or Edge:
+echo    chrome://extensions  or  edge://extensions
 echo.
-
-set DEFAULT_DIR=C:\Extensions\process-agent
-set /p INSTALL_DIR="  Install path [%DEFAULT_DIR%]: "
-if "%INSTALL_DIR%"=="" set INSTALL_DIR=%DEFAULT_DIR%
-
-echo [User] > "%~dp0pa-user.ini"
-echo INSTALL_DIR=%INSTALL_DIR% >> "%~dp0pa-user.ini"
-
-if not exist "%INSTALL_DIR%" mkdir "%INSTALL_DIR%"
-
+echo  1. Enable "Developer mode"
+echo  2. Click "Load unpacked"
+echo  3. Select: %EXT_DIR%
 echo.
-echo  [1/3] Downloading latest version...
-call :DO_DOWNLOAD
-if errorlevel 1 goto :ERROR
-
-echo.
-echo  [2/3] Register Extension in browser
-echo.
-echo  [Chrome]
-echo    1. chrome://extensions
-echo    2. Developer mode ON
-echo    3. Load unpacked
-echo    4. Select: %INSTALL_DIR%
-echo.
-echo  [Edge]
-echo    1. edge://extensions
-echo    2. Developer mode ON
-echo    3. Load unpacked
-echo    4. Select: %INSTALL_DIR%
-echo.
-
-set /p OPEN_EXT="  Open Extensions page? (Y/n): "
-if /i not "%OPEN_EXT%"=="n" start chrome://extensions
-
+echo  After registration, open Extension settings:
+echo    Click Process Agent icon (side panel opens)
+echo    Click gear icon → enter Jira URL, PAT, Project Key
 echo.
 echo  Press any key after registration...
 pause >nul
-
-echo.
-echo  [3/3] Native Host (auto-update)
-call :INSTALL_NH
-
-cls
-echo.
-echo  ==================================================
-echo    Install Complete
-echo  ==================================================
-echo.
-echo  Click Process Agent icon in browser.
-echo  Side Panel opens = Success!
-echo.
-echo  --------------------------------------------------
-echo    How to Update
-echo  --------------------------------------------------
-echo.
-echo    [Auto] Native Host installed
-echo      Extension updates automatically.
-echo.
-echo    [Manual] No Native Host
-echo      Run Setup tool - [U] - [2] Update
-echo      Then refresh in chrome://extensions
-echo.
+echo  [OK] Done.
+pause >nul
 goto :END
 
-:USER_UPDATE
+rem ============================================================
+rem  UPDATE
+rem ============================================================
+:DO_UPDATE
 cls
 echo.
 echo  ==================================================
-echo    Update
+echo    Update - Download Latest Release
 echo  ==================================================
 echo.
+echo    Target folder: %EXT_DIR%
+echo.
 
-if not exist "%~dp0pa-config.ini" (
-    echo  [ERROR] pa-config.ini not found.
-    echo  Run [1] Install first.
+if not exist "%EXT_DIR%\pa-config.ini" (
+    echo  [ERROR] pa-config.ini not found in %EXT_DIR%
+    echo  Run Admin Setup first.
+    pause >nul
     goto :END
 )
 
-for /f "tokens=1,* delims==" %%a in ('findstr "GITHUB_OWNER" "%~dp0pa-config.ini"') do set GH_OWNER=%%b
-for /f "tokens=1,* delims==" %%a in ('findstr "GITHUB_REPO" "%~dp0pa-config.ini"') do set GH_REPO=%%b
+for /f "tokens=1,* delims==" %%a in ('findstr "GITHUB_API" "%EXT_DIR%\pa-config.ini"') do set GH_API=%%b
+for /f "tokens=1,* delims==" %%a in ('findstr "GITHUB_OWNER" "%EXT_DIR%\pa-config.ini"') do set GH_OWNER=%%b
+for /f "tokens=1,* delims==" %%a in ('findstr "GITHUB_REPO" "%EXT_DIR%\pa-config.ini"') do set GH_REPO=%%b
 
-for /f "tokens=1,* delims==" %%a in ('findstr "GITHUB_API" "%~dp0pa-config.ini"') do set GH_API=%%b
-if exist "%~dp0pa-user.ini" (
-    for /f "tokens=1,* delims==" %%a in ('findstr "INSTALL_DIR" "%~dp0pa-user.ini"') do set INSTALL_DIR=%%b
-) else (
-    set INSTALL_DIR=C:\Extensions\process-agent
+echo    GitHub: %GH_OWNER%/%GH_REPO%
+echo    API:    %GH_API%
+echo.
+
+curl -s --connect-timeout 5 %GH_API% >nul 2>&1
+if %ERRORLEVEL% neq 0 (
+    echo  [ERROR] Cannot reach %GH_API%
+    echo  Check network or VPN.
+    pause >nul
+    goto :END
 )
 
-echo  Repository: %GH_OWNER%/%GH_REPO%
-echo  Path: %INSTALL_DIR%
+echo  [1/4] Checking latest release...
+set TEMP_DIR=%TEMP%\pa-update
+if exist "%TEMP_DIR%" rd /s /q "%TEMP_DIR%"
+mkdir "%TEMP_DIR%"
+
+curl -s "%GH_API%/repos/%GH_OWNER%/%GH_REPO%/releases/latest" > "%TEMP_DIR%\release.json" 2>nul
+
+set NEW_VER=
+for /f "usebackq tokens=2 delims=:, " %%a in (`findstr "tag_name" "%TEMP_DIR%\release.json"`) do set NEW_VER=%%~a
+if "%NEW_VER%"=="" (
+    echo  [ERROR] No release found. Check GitHub URL.
+    pause >nul
+    goto :END
+)
+
+rem Current version
+set CUR_VER=unknown
+if exist "%EXT_DIR%\manifest.json" (
+    for /f "usebackq tokens=2 delims=:, " %%a in (`findstr "version" "%EXT_DIR%\manifest.json"`) do set CUR_VER=%%~a
+)
+
+echo    Current: %CUR_VER%
+echo    Latest:  %NEW_VER%
 echo.
 
-echo  Downloading latest version...
-call :DO_DOWNLOAD
-if errorlevel 1 goto :ERROR
+set ZIP_URL=
+for /f "usebackq tokens=2 delims=: " %%a in (`findstr "browser_download_url" "%TEMP_DIR%\release.json"`) do set ZIP_URL=%%~a
+set ZIP_URL=https:%ZIP_URL%
+
+if "%ZIP_URL%"=="https:" (
+    echo  [ERROR] No download asset in release.
+    pause >nul
+    goto :END
+)
+
+echo  [2/4] Downloading %NEW_VER%...
+curl -sL -o "%TEMP_DIR%\update.zip" "%ZIP_URL%"
+
+if not exist "%TEMP_DIR%\update.zip" (
+    echo  [ERROR] Download failed.
+    pause >nul
+    goto :END
+)
+
+echo  [3/4] Extracting to %EXT_DIR% ...
+echo.
+echo    Files will be overwritten in:
+echo    %EXT_DIR%
+echo.
+echo    Your settings (Jira URL, PAT, etc) are stored
+echo    in Chrome sync storage, NOT in these files.
+echo    pa-config.ini (GitHub URL) is also preserved.
+echo.
+set /p CONFIRM="  Continue? (Y/n): "
+if /i "%CONFIRM%"=="n" goto :END
+
+rem Backup pa-config.ini
+copy "%EXT_DIR%\pa-config.ini" "%TEMP_DIR%\pa-config.ini.bak" >nul 2>&1
+
+rem Extract (overwrite)
+powershell -command "Expand-Archive -Path '%TEMP_DIR%\update.zip' -DestinationPath '%EXT_DIR%' -Force" 2>nul
+
+rem Restore pa-config.ini
+copy "%TEMP_DIR%\pa-config.ini.bak" "%EXT_DIR%\pa-config.ini" >nul 2>&1
+
+echo  [4/4] Cleaning up...
+rd /s /q "%TEMP_DIR%" 2>nul
 
 echo.
-echo  ==================================================
-echo    Update Complete
-echo  ==================================================
+echo  ====================================
+echo    Updated: %CUR_VER% → %NEW_VER%
+echo  ====================================
 echo.
-echo  Refresh Process Agent in chrome://extensions
+echo  Next step:
+echo    Chrome → chrome://extensions
+echo    → Process Agent → Click reload icon
+echo    (or Edge → edge://extensions → reload)
 echo.
-set /p OE="  Open Extensions page? (Y/n): "
-if /i not "%OE%"=="n" start chrome://extensions
+echo  Press any key...
+pause >nul
 goto :END
 
+rem ============================================================
+rem  STATUS
+rem ============================================================
 :STATUS
 cls
 echo.
@@ -290,181 +326,38 @@ echo  ==================================================
 echo    Status Check
 echo  ==================================================
 echo.
+echo    Extension folder: %EXT_DIR%
+echo.
 
-if exist "%~dp0pa-config.ini" (
-    echo  [OK] Config file exists
-    for /f "tokens=1,* delims==" %%a in ('findstr "GITHUB_URL" "%~dp0pa-config.ini"') do echo       GitHub: %%b
+if exist "%EXT_DIR%\manifest.json" (
+    echo    [OK] Extension files found
+    for /f "usebackq tokens=2 delims=:, " %%a in (`findstr "version" "%EXT_DIR%\manifest.json"`) do echo       Version: %%~a
 ) else (
-    echo  [--] Config file not found
+    echo    [!!] Extension files NOT found in %EXT_DIR%
 )
+echo.
 
-if exist "%~dp0pa-user.ini" (
-    for /f "tokens=1,* delims==" %%a in ('findstr "INSTALL_DIR" "%~dp0pa-user.ini"') do echo  [OK] Install path: %%b
+if exist "%EXT_DIR%\pa-config.ini" (
+    echo    [OK] pa-config.ini found
+    for /f "tokens=1,* delims==" %%a in ('findstr "GITHUB_URL" "%EXT_DIR%\pa-config.ini"') do echo       GitHub: %%b
+    echo.
+
+    for /f "tokens=1,* delims==" %%a in ('findstr "GITHUB_API" "%EXT_DIR%\pa-config.ini"') do set GH_API=%%b
+    for /f "tokens=1,* delims==" %%a in ('findstr "GITHUB_OWNER" "%EXT_DIR%\pa-config.ini"') do set GH_OWNER=%%b
+    for /f "tokens=1,* delims==" %%a in ('findstr "GITHUB_REPO" "%EXT_DIR%\pa-config.ini"') do set GH_REPO=%%b
+
+    curl -s --connect-timeout 5 "!GH_API!/repos/!GH_OWNER!/!GH_REPO!/releases/latest" > "%TEMP%\pa-status.json" 2>nul
+    for /f "usebackq tokens=2 delims=:, " %%a in (`findstr "tag_name" "%TEMP%\pa-status.json"`) do echo    Latest release: %%~a
+    del "%TEMP%\pa-status.json" 2>nul
 ) else (
-    echo  [--] User config not found
+    echo    [!!] pa-config.ini NOT found (run Admin Setup)
 )
-
-if exist "%LOCALAPPDATA%\ProcessAgent\updater.py" (
-    echo  [OK] Native Host installed
-) else (
-    echo  [--] Native Host not installed
-)
-
-reg query "HKCU\Software\Google\Chrome\NativeMessagingHosts\com.process_agent.updater" >nul 2>&1
-if %errorlevel%==0 (echo  [OK] Registry Chrome) else (echo  [--] Registry Chrome)
-
-reg query "HKCU\Software\Microsoft\Edge\NativeMessagingHosts\com.process_agent.updater" >nul 2>&1
-if %errorlevel%==0 (echo  [OK] Registry Edge) else (echo  [--] Registry Edge)
-
-python --version >nul 2>&1
-if %errorlevel%==0 (echo  [OK] Python installed) else (echo  [--] Python not installed)
-
-curl -s --connect-timeout 5 %GH_API% >nul 2>&1
-if %errorlevel%==0 (echo  [OK] GitHub accessible) else (echo  [--] GitHub not accessible)
-
 echo.
-goto :END
-
-:UNINSTALL
-cls
-echo.
-echo  ==================================================
-echo    Uninstall
-echo  ==================================================
-echo.
-set /p CF="  Continue? (y/N): "
-if /i not "%CF%"=="y" goto :END
-
-echo.
-reg delete "HKCU\Software\Google\Chrome\NativeMessagingHosts\com.process_agent.updater" /f >nul 2>&1
-reg delete "HKCU\Software\Microsoft\Edge\NativeMessagingHosts\com.process_agent.updater" /f >nul 2>&1
-echo  [OK] Registry removed
-
-if exist "%LOCALAPPDATA%\ProcessAgent" (
-    rmdir /s /q "%LOCALAPPDATA%\ProcessAgent"
-    echo  [OK] Native Host removed
-)
-
-if exist "%~dp0pa-config.ini" del "%~dp0pa-config.ini"
-if exist "%~dp0pa-user.ini" del "%~dp0pa-user.ini"
-echo  [OK] Config removed
-
-echo.
-echo  Also remove Extension from chrome://extensions
-echo.
-goto :END
-
-:: ==================================================
-::  Native Host Install
-:: ==================================================
-:INSTALL_NH
-echo.
-python --version >nul 2>&1
-if errorlevel 1 (
-    echo  --------------------------------------------------
-    echo    Python not installed - Auto-update disabled
-    echo  --------------------------------------------------
-    echo.
-    echo    Manual update method:
-    echo      1. Run Setup tool
-    echo      2. Select [U] User
-    echo      3. Select [2] Update
-    echo      4. Refresh in chrome://extensions
-    echo.
-    echo    Install Python for auto-update:
-    echo    https://www.python.org/downloads/
-    echo    Check "Add Python to PATH"
-    echo.
-    exit /b 0
-)
-
-echo  Extension ID auto-detection...
-set EXT_ID=
-
-set PREFS_FILE=%LOCALAPPDATA%\Google\Chrome\User Data\Default\Preferences
-if exist "%PREFS_FILE%" (
-    for /f "tokens=*" %%a in ('powershell -Command "try { $j = Get-Content '%PREFS_FILE%' -Raw | ConvertFrom-Json; $j.extensions.settings.PSObject.Properties | ForEach-Object { if ($_.Value.manifest.name -eq 'Process Agent') { $_.Name } } } catch {}" 2^>nul') do set EXT_ID=%%a
-)
-
-if "%EXT_ID%"=="" (
-    set PREFS_FILE=%LOCALAPPDATA%\Microsoft\Edge\User Data\Default\Preferences
-    if exist "!PREFS_FILE!" (
-        for /f "tokens=*" %%a in ('powershell -Command "try { $j = Get-Content '!PREFS_FILE!' -Raw | ConvertFrom-Json; $j.extensions.settings.PSObject.Properties | ForEach-Object { if ($_.Value.manifest.name -eq 'Process Agent') { $_.Name } } } catch {}" 2^>nul') do set EXT_ID=%%a
-    )
-)
-
-if not "%EXT_ID%"=="" (
-    echo  [OK] Detected: %EXT_ID%
-) else (
-    echo  Auto-detection failed.
-    echo  Copy Extension ID from chrome://extensions
-    echo.
-    set /p EXT_ID="  Extension ID: "
-    if "!EXT_ID!"=="" (
-        echo  Skipped. Use manual update.
-        exit /b 0
-    )
-)
-
-set NH_DIR=%LOCALAPPDATA%\ProcessAgent
-if not exist "%NH_DIR%" mkdir "%NH_DIR%"
-
-for /f "tokens=*" %%a in ('where python 2^>nul') do set PY_PATH=%%a
-
-copy "%~dp0updater.py" "%NH_DIR%\updater.py" >nul 2>&1
-
-echo @echo off > "%NH_DIR%\run_updater.bat"
-echo "%PY_PATH%" "%NH_DIR%\updater.py" >> "%NH_DIR%\run_updater.bat"
-
-echo {"name":"com.process_agent.updater","description":"PA Updater","path":"%NH_DIR:\=\\%\\run_updater.bat","type":"stdio","allowed_origins":["chrome-extension://%EXT_ID%/"]} > "%NH_DIR%\manifest.chrome.json"
-echo {"name":"com.process_agent.updater","description":"PA Updater","path":"%NH_DIR:\=\\%\\run_updater.bat","type":"stdio","allowed_origins":["chrome-extension://%EXT_ID%/"]} > "%NH_DIR%\manifest.edge.json"
-
-reg add "HKCU\Software\Google\Chrome\NativeMessagingHosts\com.process_agent.updater" /ve /t REG_SZ /d "%NH_DIR%\manifest.chrome.json" /f >nul 2>&1
-reg add "HKCU\Software\Microsoft\Edge\NativeMessagingHosts\com.process_agent.updater" /ve /t REG_SZ /d "%NH_DIR%\manifest.edge.json" /f >nul 2>&1
-
-echo  [OK] Native Host installed (auto-update enabled)
-exit /b 0
-
-:: ==================================================
-::  Download
-:: ==================================================
-:DO_DOWNLOAD
-set TEMP_DIR=%TEMP%\pa-update
-if not exist "%TEMP_DIR%" mkdir "%TEMP_DIR%"
-
-curl -s "%GH_API%/repos/%GH_OWNER%/%GH_REPO%/releases/latest" > "%TEMP_DIR%\release.json" 2>nul
-if errorlevel 1 (
-    echo  [ERROR] GitHub connection failed.
-    exit /b 1
-)
-
-for /f "tokens=2 delims=:," %%a in ('findstr "tag_name" "%TEMP_DIR%\release.json"') do (
-    set NEW_VER=%%~a
-    echo  Latest: %%~a
-)
-
-set ZIP_URL=
-for /f "usebackq tokens=2 delims=: " %%a in (`findstr "browser_download_url" "%TEMP_DIR%\release.json"`) do set ZIP_URL=%%~a
-set ZIP_URL=https:%ZIP_URL%
-
-if "%ZIP_URL%"=="https:" (
-    echo  [ERROR] No zip in Release.
-    exit /b 1
-)
-
-curl -sL -o "%TEMP_DIR%\update.zip" "%ZIP_URL%"
-powershell -Command "Expand-Archive -Force '%TEMP_DIR%\update.zip' '%INSTALL_DIR%'" 2>nul
-
-del /q "%TEMP_DIR%\release.json" "%TEMP_DIR%\update.zip" 2>nul
-echo  [OK] Download complete
-exit /b 0
-
-:ERROR
-echo.
-echo  [ERROR] Something went wrong.
+echo  Press any key...
+pause >nul
 goto :END
 
 :END
 echo.
-echo  Press any key to close...
-pause >nul
+echo  Bye!
+endlocal

@@ -7,8 +7,7 @@
     "storage",
     "alarms",
     "sidePanel",
-    "activeTab",
-    "nativeMessaging"
+    "activeTab"
   ],
   "host_permissions": [
     "https://*/*"
